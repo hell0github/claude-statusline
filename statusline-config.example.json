@@ -55,5 +55,14 @@
       "color": "red",
       "comment": "Layer 3: 100-105% actual usage shown at 20x speed (red)"
     }
+  },
+  "sections": {
+    "show_directory": true,
+    "show_context": true,
+    "show_cost": true,
+    "show_weekly": true,
+    "show_timer": true,
+    "show_sessions": true,
+    "comment": "Toggle visibility of statusline sections - set to false to hide any section"
   }
 }
