@@ -403,7 +403,16 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
         [[ "$SHOW_SESSIONS" == "true" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
 
         # Join sections with separator
-        STATUSLINE=$(IFS=" | "; echo "${STATUSLINE_SECTIONS[*]}")
+        STATUSLINE=""
+        FIRST=true
+        for section in "${STATUSLINE_SECTIONS[@]}"; do
+            if [[ "$FIRST" == "true" ]]; then
+                STATUSLINE="$section"
+                FIRST=false
+            else
+                STATUSLINE="$STATUSLINE | $section"
+            fi
+        done
 
         # Display statusline
         printf '%b\n' "$STATUSLINE"
