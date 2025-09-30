@@ -1,0 +1,16 @@
+# Sensitive user data
+projects/
+settings.json
+plugins/
+
+# User-specific configuration (keep only the example)
+statusline-config.json
+
+# Backup files
+*.backup.*
+
+# MacOS
+.DS_Store
+
+# Logs
+*.log
