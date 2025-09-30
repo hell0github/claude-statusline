@@ -4,12 +4,15 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 
 ## Features
 
-- **Compatible with Claude Sonnet 4.5** - Fully supports the latest Claude Sonnet 4.5 model
-- **Multi-layer progress visualization** - 3-tier color system (green/orange/red) with accelerated display speeds to emphasize usage thresholds
-- **Real-time tracking** - Context windows, 5-hour session costs, weekly spending, and concurrent sessions
-- **Smart projections** - Visual markers showing projected usage at current rate
-- **Configurable limits** - JSON-based configuration for all plans (pro/max5x/max20x)
+- **Accurate context window tracking** - Counts reserved context space for Claude Sonnet 4.5
+- **Cost usage tracking** - Re-calibrated to official '/usage' tracker, inspired by [Claude-Code-Usage-Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor), based on real Sonnet 4.5 API pricing
+- **Multi-layer progression system** - Emphasizes first 50% (green, Sonnet 4.5 is token-effective), 100% usage in different layer (orange), overuse warning (red)
+- **Weekly usage tracking** - Calibrated to official /usage data
+- **Linear cost prediction** - Projects usage to end of 5-hour session
+- **Lightweight bash implementation** - Runs entirely in shell, no heavy dependencies
+- **Fully customizable** - Config file with feature toggles for enabling/disabling components
 - **Privacy-first design** - Personal config excluded from version control
+- **Tested on Max20 plan and macOS** - Compatible with Linux and WSL
 
 ## Platform Support
 
