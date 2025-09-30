@@ -1,0 +1,59 @@
+{
+  "user": {
+    "plan": "max20x",
+    "comment": "Options: pro, max5x, max20x - Set this to your Claude subscription plan"
+  },
+  "ccusage_version": "17.1.0",
+  "limits": {
+    "weekly": {
+      "pro": 300,
+      "max5x": 500,
+      "max20x": 850,
+      "comment": "Weekly cost limits in USD for each plan tier. NOTE: pro and max5x limits are estimated/unverified - only max20x has been tested"
+    },
+    "context": 168,
+    "cost": 140,
+    "token": 220000,
+    "comment": "Context limit (in thousands), cost limit per 5-hour session, token limit for tracking"
+  },
+  "paths": {
+    "claude_projects": "~/.claude/projects/",
+    "comment": "Path to your Claude Code projects directory"
+  },
+  "display": {
+    "bar_length": 10,
+    "transcript_tail_lines": 200,
+    "session_activity_threshold_minutes": 5,
+    "comment": "Display settings: progress bar length, lines to read from transcript, minutes for active session detection"
+  },
+  "colors": {
+    "orange": "\\033[1;38;5;208m",
+    "red": "\\033[1;31m",
+    "pink": "\\033[38;5;225m",
+    "green": "\\033[38;5;194m",
+    "purple": "\\033[35m",
+    "cyan": "\\033[96m",
+    "reset": "\\033[0m",
+    "comment": "ANSI color codes for statusline elements - customize to your preference"
+  },
+  "multi_layer": {
+    "layer1": {
+      "threshold_percent": 50,
+      "multiplier": 2,
+      "color": "green",
+      "comment": "Layer 1: 0-50% actual usage shown at 2x speed (green)"
+    },
+    "layer2": {
+      "threshold_percent": 100,
+      "multiplier": 2,
+      "color": "orange",
+      "comment": "Layer 2: 50-100% actual usage shown at 2x speed (orange)"
+    },
+    "layer3": {
+      "threshold_percent": 105,
+      "multiplier": 20,
+      "color": "red",
+      "comment": "Layer 3: 100-105% actual usage shown at 20x speed (red)"
+    }
+  }
+}
