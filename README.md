@@ -9,6 +9,8 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 - **Multi-layer progression system** - Emphasizes first 50% (green, Sonnet 4.5 is token-effective), 100% usage in different layer (orange), overuse warning (red)
 - **Weekly usage tracking** - Calibrated to official /usage data
 - **Linear cost prediction** - Projects usage to end of 5-hour session
+- **5-hour session reset/left time tracking** - Displays countdown until session limit resets
+- **Active Claude Code sessions tracking** - Monitors concurrent sessions across projects
 - **Lightweight bash implementation** - Runs entirely in shell, no heavy dependencies
 - **Fully customizable** - Config file with feature toggles for enabling/disabling components
 - **Privacy-first design** - Personal config excluded from version control
