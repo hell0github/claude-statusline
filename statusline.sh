@@ -40,6 +40,14 @@ if [ -f "$CONFIG_FILE" ]; then
     LAYER3_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.threshold_percent // 105')
     LAYER3_MULTIPLIER=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.multiplier // 20')
 
+    # Section toggles
+    SHOW_DIRECTORY=$(echo "$CONFIG" | jq -r '.sections.show_directory // true')
+    SHOW_CONTEXT=$(echo "$CONFIG" | jq -r '.sections.show_context // true')
+    SHOW_COST=$(echo "$CONFIG" | jq -r '.sections.show_cost // true')
+    SHOW_WEEKLY=$(echo "$CONFIG" | jq -r '.sections.show_weekly // true')
+    SHOW_TIMER=$(echo "$CONFIG" | jq -r '.sections.show_timer // true')
+    SHOW_SESSIONS=$(echo "$CONFIG" | jq -r '.sections.show_sessions // true')
+
     # Color codes
     ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.orange // "\\033[1;38;5;208m"' | sed 's/\\\\/\\/g')
     RED_CODE=$(echo "$CONFIG" | jq -r '.colors.red // "\\033[1;31m"' | sed 's/\\\\/\\/g')
@@ -68,6 +76,13 @@ else
     LAYER2_MULTIPLIER=2
     LAYER3_THRESHOLD=105
     LAYER3_MULTIPLIER=20
+    # Default section toggles
+    SHOW_DIRECTORY=true
+    SHOW_CONTEXT=true
+    SHOW_COST=true
+    SHOW_WEEKLY=true
+    SHOW_TIMER=true
+    SHOW_SESSIONS=true
     # Default color codes
     ORANGE_CODE='\033[1;38;5;208m'
     RED_CODE='\033[1;31m'
@@ -377,8 +392,21 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
                 ;;
         esac
 
-        # Display statusline with context and cost tracking (colored)
-        printf '%b\n' "${ORANGE_CODE}${DIR_NAME}${RESET_CODE} | ${PINK_CODE}${CTX_TOTAL} ${CTX_PROGRESS_BAR}${RESET_CODE} | ${PROGRESS_COLOR}${COST_FMT} ${PROGRESS_BAR} ${COST_PERCENTAGE}% | weekly ${WEEKLY_PCT}%${RESET_CODE} | ${PURPLE_CODE}${RESET_INFO}${RESET_CODE} | ${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}"
+        # Build statusline conditionally based on section toggles
+        STATUSLINE_SECTIONS=()
+
+        [[ "$SHOW_DIRECTORY" == "true" ]] && STATUSLINE_SECTIONS+=("${ORANGE_CODE}${DIR_NAME}${RESET_CODE}")
+        [[ "$SHOW_CONTEXT" == "true" ]] && STATUSLINE_SECTIONS+=("${PINK_CODE}${CTX_TOTAL} ${CTX_PROGRESS_BAR}${RESET_CODE}")
+        [[ "$SHOW_COST" == "true" ]] && STATUSLINE_SECTIONS+=("${PROGRESS_COLOR}${COST_FMT} ${PROGRESS_BAR} ${COST_PERCENTAGE}%${RESET_CODE}")
+        [[ "$SHOW_WEEKLY" == "true" ]] && STATUSLINE_SECTIONS+=("weekly ${WEEKLY_PCT}%")
+        [[ "$SHOW_TIMER" == "true" ]] && STATUSLINE_SECTIONS+=("${PURPLE_CODE}${RESET_INFO}${RESET_CODE}")
+        [[ "$SHOW_SESSIONS" == "true" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
+
+        # Join sections with separator
+        STATUSLINE=$(IFS=" | "; echo "${STATUSLINE_SECTIONS[*]}")
+
+        # Display statusline
+        printf '%b\n' "$STATUSLINE"
     else
         # Fallback: No active window
         echo "$DIR_NAME | No active window"
