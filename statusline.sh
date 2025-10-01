@@ -252,25 +252,32 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
             FILLED=$BAR_LENGTH
         fi
 
-        # Calculate projected position with same multi-layer logic
+        # Calculate projected position using CURRENT layer's multiplier for consistent scale
         PROJECTED_POS=-1
         PROJECTED_BAR_COLOR="GREEN"
         if [ -n "$PROJECTED_COST" ] && [ "$PROJECTED_COST" != "0" ]; then
             PROJECTED_ACTUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($PROJECTED_COST / $COST_LIMIT) * 100}")
 
-            # Apply same layer logic to projection
+            # Determine projection color based on which layer it falls into
             if (( $(awk "BEGIN {print ($PROJECTED_ACTUAL_PCT <= $LAYER1_THRESHOLD)}") )); then
-                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $PROJECTED_ACTUAL_PCT * $LAYER1_MULTIPLIER}")
                 PROJECTED_BAR_COLOR="GREEN"
             elif (( $(awk "BEGIN {print ($PROJECTED_ACTUAL_PCT <= $LAYER2_THRESHOLD)}") )); then
-                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($PROJECTED_ACTUAL_PCT - $LAYER1_THRESHOLD) * $LAYER2_MULTIPLIER}")
                 PROJECTED_BAR_COLOR="ORANGE"
             else
-                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($PROJECTED_ACTUAL_PCT - $LAYER2_THRESHOLD) * $LAYER3_MULTIPLIER}")
-                if (( $(awk "BEGIN {print ($PROJECTED_VISUAL_PCT > 100)}") )); then
-                    PROJECTED_VISUAL_PCT=100
-                fi
                 PROJECTED_BAR_COLOR="RED"
+            fi
+
+            # Calculate visual position using CURRENT layer's multiplier (same scale as current bar)
+            if [ "$BAR_COLOR" = "GREEN" ]; then
+                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $PROJECTED_ACTUAL_PCT * $LAYER1_MULTIPLIER}")
+            elif [ "$BAR_COLOR" = "ORANGE" ]; then
+                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($PROJECTED_ACTUAL_PCT - $LAYER1_THRESHOLD) * $LAYER2_MULTIPLIER}")
+            else
+                PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($PROJECTED_ACTUAL_PCT - $LAYER2_THRESHOLD) * $LAYER3_MULTIPLIER}")
+            fi
+
+            if (( $(awk "BEGIN {print ($PROJECTED_VISUAL_PCT > 100)}") )); then
+                PROJECTED_VISUAL_PCT=100
             fi
 
             PROJECTED_POS=$(awk "BEGIN {printf \"%.0f\", ($PROJECTED_VISUAL_PCT / 100) * $BAR_LENGTH}")
