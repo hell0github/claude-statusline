@@ -38,19 +38,19 @@
   },
   "multi_layer": {
     "layer1": {
-      "threshold_percent": 30,
+      "threshold_percent": 50,
       "color": "green",
-      "comment": "Layer 1: 0-30% actual usage (green) - multiplier auto-calculated"
+      "comment": "Layer 1: 0-50% actual usage (green) - multiplier auto-calculated"
     },
     "layer2": {
-      "threshold_percent": 50,
+      "threshold_percent": 100,
       "color": "orange",
-      "comment": "Layer 2: 30-50% actual usage (orange) - multiplier auto-calculated"
+      "comment": "Layer 2: 50-100% actual usage (orange) - multiplier auto-calculated"
     },
     "layer3": {
-      "threshold_percent": 100,
+      "threshold_percent": 105,
       "color": "red",
-      "comment": "Layer 3: 50-100% actual usage (red) - multiplier auto-calculated"
+      "comment": "Layer 3: 100-105% actual usage (red) - multiplier auto-calculated"
     },
     "comment": "Multipliers are automatically calculated: 100/threshold_range to fill bar at each threshold"
   },
