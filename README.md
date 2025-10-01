@@ -6,7 +6,7 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 
 - **Accurate context window tracking** - Counts reserved context space for Claude Sonnet 4.5
 - **Cost usage tracking** - Re-calibrated to official '/usage' tracker, inspired by [Claude-Code-Usage-Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor), based on real Sonnet 4.5 API pricing
-- **Multi-layer progression system** - Emphasizes first 30% (green, 3.33x speed), 30-50% (orange, 5x speed), 50-100% (red, 2x speed) for easier usage limit awareness
+- **Multi-layer progression system** - Configurable thresholds (default: 30%/50%/100%) with auto-calculated display speeds for optimal visual feedback
 - **Weekly usage tracking** - Calibrated to official /usage data
 - **Linear cost prediction** - Projects usage to end of 5-hour session
 - **5-hour session reset/left time tracking** - Displays countdown until session limit resets

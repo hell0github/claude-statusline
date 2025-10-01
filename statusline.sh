@@ -32,13 +32,15 @@ if [ -f "$CONFIG_FILE" ]; then
     # ccusage version
     CCUSAGE_VERSION=$(echo "$CONFIG" | jq -r '.ccusage_version // "17.1.0"')
 
-    # Multi-layer settings
-    LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.threshold_percent // 50')
-    LAYER1_MULTIPLIER=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.multiplier // 2')
-    LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.threshold_percent // 100')
-    LAYER2_MULTIPLIER=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.multiplier // 2')
-    LAYER3_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.threshold_percent // 105')
-    LAYER3_MULTIPLIER=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.multiplier // 20')
+    # Multi-layer settings - load thresholds
+    LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.threshold_percent // 30')
+    LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.threshold_percent // 50')
+    LAYER3_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.threshold_percent // 100')
+
+    # Calculate multipliers dynamically based on thresholds
+    LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
+    LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
+    LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
 
     # Section toggles
     SHOW_DIRECTORY=$(echo "$CONFIG" | jq -r '.sections.show_directory // true')
@@ -71,11 +73,12 @@ else
     SESSION_ACTIVITY_THRESHOLD=5
     CCUSAGE_VERSION="17.1.0"
     LAYER1_THRESHOLD=30
-    LAYER1_MULTIPLIER=3.33
     LAYER2_THRESHOLD=50
-    LAYER2_MULTIPLIER=5
     LAYER3_THRESHOLD=100
-    LAYER3_MULTIPLIER=2
+    # Calculate multipliers dynamically
+    LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
+    LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
+    LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
     # Default section toggles
     SHOW_DIRECTORY=true
     SHOW_CONTEXT=true
