@@ -38,22 +38,22 @@
   },
   "multi_layer": {
     "layer1": {
-      "threshold_percent": 50,
-      "multiplier": 2,
+      "threshold_percent": 30,
+      "multiplier": 3.33,
       "color": "green",
-      "comment": "Layer 1: 0-50% actual usage shown at 2x speed (green)"
+      "comment": "Layer 1: 0-30% actual usage shown at 3.33x speed (green)"
     },
     "layer2": {
-      "threshold_percent": 100,
-      "multiplier": 2,
+      "threshold_percent": 50,
+      "multiplier": 5,
       "color": "orange",
-      "comment": "Layer 2: 50-100% actual usage shown at 2x speed (orange)"
+      "comment": "Layer 2: 30-50% actual usage shown at 5x speed (orange)"
     },
     "layer3": {
-      "threshold_percent": 105,
-      "multiplier": 20,
+      "threshold_percent": 100,
+      "multiplier": 2,
       "color": "red",
-      "comment": "Layer 3: 100-105% actual usage shown at 20x speed (red)"
+      "comment": "Layer 3: 50-100% actual usage shown at 2x speed (red)"
     }
   },
   "sections": {
