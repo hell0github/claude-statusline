@@ -6,6 +6,11 @@ input=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/statusline-config.json"
 
+# Source utility functions for ccusage_r support (optional)
+if [ -f "$SCRIPT_DIR/statusline-utils.sh" ]; then
+    source "$SCRIPT_DIR/statusline-utils.sh"
+fi
+
 # Load configuration from JSON file if it exists
 if [ -f "$CONFIG_FILE" ]; then
     CONFIG=$(cat "$CONFIG_FILE")
@@ -49,6 +54,18 @@ if [ -f "$CONFIG_FILE" ]; then
     SHOW_WEEKLY=$(echo "$CONFIG" | jq -r '.sections.show_weekly // true')
     SHOW_TIMER=$(echo "$CONFIG" | jq -r '.sections.show_timer // true')
     SHOW_SESSIONS=$(echo "$CONFIG" | jq -r '.sections.show_sessions // true')
+
+    # Tracking settings
+    WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme // "ccusage"')
+    OFFICIAL_RESET_DATE_ISO=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
+
+    # Convert official reset date to Unix timestamp if provided
+    if [ -n "$OFFICIAL_RESET_DATE_ISO" ]; then
+        OFFICIAL_RESET_DATE=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$OFFICIAL_RESET_DATE_ISO" +%s 2>/dev/null || \
+                              date -d "$OFFICIAL_RESET_DATE_ISO" +%s 2>/dev/null || echo "")
+    else
+        OFFICIAL_RESET_DATE=""
+    fi
 
     # Color codes
     ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.orange // "\\033[1;38;5;208m"' | sed 's/\\\\/\\/g')
@@ -194,9 +211,15 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
         COST=$(echo "$BLOCK" | jq -r '.costUSD // 0')
         PROJECTED_COST=$(echo "$BLOCK" | jq -r '.projection.totalCost // 0')
 
-        # Get weekly usage
-        WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
-        WEEK_COST=$(echo "$WEEKLY_DATA" | jq -r '.weekly[-1].totalCost // 0')
+        # Get weekly usage based on configured tracking scheme
+        if [ "$WEEKLY_SCHEME" = "ccusage_r" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_official_weekly_cost &>/dev/null; then
+            # Use ccusage costs filtered by official Anthropic reset schedule
+            WEEK_COST=$(get_official_weekly_cost "$OFFICIAL_RESET_DATE")
+        else
+            # Use ccusage with ISO weeks (default)
+            WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
+            WEEK_COST=$(echo "$WEEKLY_DATA" | jq -r '.weekly[-1].totalCost // 0')
+        fi
         WEEKLY_PCT=$(awk "BEGIN {printf \"%.0f\", ($WEEK_COST / $WEEKLY_LIMIT) * 100}")
 
         # Extract time data

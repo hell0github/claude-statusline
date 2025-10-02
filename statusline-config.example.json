@@ -62,5 +62,10 @@
     "show_timer": true,
     "show_sessions": true,
     "comment": "Toggle visibility of statusline sections - set to false to hide any section"
+  },
+  "tracking": {
+    "weekly_scheme": "ccusage",
+    "official_reset_date": "",
+    "comment": "Weekly tracking: 'ccusage' (default, uses ISO weeks) or 'ccusage_r' (optional, matches Anthropic console schedule). To use ccusage_r: set official_reset_date from your console's 'Resets [date/time]' (format: 2025-10-08T15:00:00-07:00 for 'Oct 8, 3pm Vancouver'). See README for setup guide."
   }
 }

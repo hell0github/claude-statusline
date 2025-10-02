@@ -91,6 +91,35 @@ Edit `~/.claude/statusline-config.json` to customize your statusline:
 
 See `statusline-config.example.json` for all available options with detailed comments.
 
+## Weekly Usage Tracking Calibration (Optional)
+
+**Note**: By default, weekly tracking uses ISO weeks (Monday-Sunday) via ccusage. This may show different percentages than the Anthropic console, which uses custom reset cycles (e.g., Wednesday 3pm → Wednesday 3pm).
+
+If you want weekly tracking to **match your Anthropic console percentage exactly**, you can optionally configure the `ccusage_r` scheme:
+
+### Optional: Configure Official Reset Schedule
+
+1. **Find your reset date** at [console.anthropic.com](https://console.anthropic.com):
+   - Go to Usage tab
+   - Look for "Resets [date/time]" text (e.g., "Resets Oct 8, 3pm")
+
+2. **Update your config** (`~/.claude/statusline-config.json`):
+```json
+{
+  "tracking": {
+    "weekly_scheme": "ccusage_r",
+    "official_reset_date": "2025-10-08T15:00:00-07:00"
+  }
+}
+```
+
+3. **Format guide**:
+   - `YYYY-MM-DDTHH:MM:SS±HH:MM`
+   - Example: "Oct 8, 3pm Vancouver" → `2025-10-08T15:00:00-07:00` (PDT = UTC-7)
+   - You only need to update this once; it auto-calculates future periods
+
+**Result**: Weekly percentage will match Anthropic console, useful for monitoring actual limits.
+
 ## Troubleshooting
 
 | Issue | Solution |
