@@ -352,12 +352,19 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
             if [ $i -lt $FILLED ]; then
                 PROGRESS_BAR="${PROGRESS_BAR}█"
             elif [ $i -eq $PROJECTED_POS ]; then
-                # Projection separator with its own layer color
-                PROGRESS_BAR="${PROGRESS_BAR}${RESET_CODE}${PROJECTED_COLOR}│${RESET_CODE}${CURRENT_COLOR}"
+                # Projection separator uses current layer color (displayed on current bar)
+                PROGRESS_BAR="${PROGRESS_BAR}${RESET_CODE}${CURRENT_COLOR}│${RESET_CODE}${CURRENT_COLOR}"
             else
                 PROGRESS_BAR="${PROGRESS_BAR}░"
             fi
         done
+
+        # Handle separator at end position (when PROJECTED_POS == BAR_LENGTH)
+        # This occurs when projection crosses layer boundary and is capped
+        if [ $PROJECTED_POS -eq $BAR_LENGTH ]; then
+            PROGRESS_BAR="${PROGRESS_BAR}${RESET_CODE}${CURRENT_COLOR}│${RESET_CODE}${CURRENT_COLOR}"
+        fi
+
         PROGRESS_BAR="${PROGRESS_BAR}]"
 
         # Create context progress bar (same length as cost bar)
