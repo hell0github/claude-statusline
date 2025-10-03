@@ -28,7 +28,7 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 .claude | 45k/168k [████████░░] | $32/$140 [█████░░░░░] 23% | weekly 18% | 3h 42m | ×2
 ```
 
-![Statusline Screenshot](./screenshots/statusline.png)
+![Statusline Screenshot](./example/statusline.png)
 *Screenshot showing the multi-layer color system in action*
 
 ## Installation
@@ -100,6 +100,39 @@ Edit `~/Projects/cc-statusline/config/config.json` to customize your statusline:
 
 See `config/config.example.json` for all available options with detailed comments.
 
+## Handling Untracked Costs (Deleted Transcripts)
+
+**Problem**: When you use Claude Code's `clear` or `compact` commands to delete transcripts, the usage data is permanently removed from ccusage tracking (which reads from transcript files). This creates a discrepancy:
+- **Anthropic Console**: Still shows full usage (server-side records)
+- **Statusline**: Shows lower percentage (missing deleted transcript costs)
+
+**Solution**: Set `tracking.weekly_baseline_percent` to compensate for untracked costs.
+
+### How to Calibrate
+
+1. **Check your Anthropic console** for current weekly usage percentage
+2. **Check your statusline** for current weekly usage percentage
+3. **Calculate the gap**: `console_percent - statusline_percent`
+4. **Set baseline**: Edit `config/config.json`:
+   ```json
+   {
+     "tracking": {
+       "weekly_baseline_percent": 5
+     }
+   }
+   ```
+
+### Example
+
+Your observed reality:
+- Anthropic console shows: **15% weekly usage**
+- Statusline shows: **10% weekly usage**
+- Gap: `15% - 10% = 5%`
+- Configuration: Set `"weekly_baseline_percent": 5`
+- Result: Statusline now shows **15%** (10% tracked + 5% baseline)
+
+**Note**: The baseline applies to **all tracking schemes** (both `ccusage` and `ccusage_r`). If you don't delete transcripts, keep this at `0` (default).
+
 ## Weekly Usage Tracking Calibration (Optional)
 
 **Note**: By default, weekly tracking uses ISO weeks (Monday-Sunday) via ccusage. This may show different percentages than the Anthropic console, which uses custom reset cycles (e.g., Wednesday 3pm → Wednesday 3pm).
@@ -164,7 +197,7 @@ The shim provides a stable interface while allowing flexible reorganization of t
 ├── data/                          # Runtime data (gitignored)
 │   ├── .official_weekly_cache
 │   └── statusline-data.json
-├── screenshots/                   # Documentation
+├── example/                       # Example screenshot
 ├── install.sh                     # Automated installer
 ├── README.md                      # This file
 ├── CLAUDE.md                      # Development guide
