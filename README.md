@@ -54,20 +54,28 @@ The installer will:
 **Prerequisites:** [Claude Code](https://claude.com/claude-code), `jq` (`brew install jq`), `ccusage` (`npm install -g ccusage`)
 
 ```bash
-# Clone and install
-git clone https://github.com/hell0github/claude-statusline.git
-cd claude-statusline
+# Clone repository to Projects directory
+git clone https://github.com/hell0github/claude-statusline.git ~/Projects/cc-statusline
+cd ~/Projects/cc-statusline
+
+# Run installer (recommended)
 ./install.sh
 
-# OR copy manually:
-cp statusline.sh ~/.claude/
-cp statusline-config.example.json ~/.claude/statusline-config.json
+# OR set up manually:
+# 1. Create shim in ~/.claude/
+cat > ~/.claude/statusline.sh << 'EOF'
+#!/bin/bash
+exec "$HOME/Projects/cc-statusline/src/statusline.sh" "$@"
+EOF
 chmod +x ~/.claude/statusline.sh
 
-# Edit config (set your plan)
-nano ~/.claude/statusline-config.json
+# 2. Copy example config
+cp config/config.example.json config/config.json
 
-# Add to ~/.claude/settings.json:
+# 3. Edit config (set your plan)
+nano config/config.json
+
+# 4. Add to ~/.claude/settings.json:
 {
   "statusLine": {
     "type": "command",
@@ -80,16 +88,17 @@ nano ~/.claude/statusline-config.json
 
 ## Configuration
 
-Edit `~/.claude/statusline-config.json` to customize your statusline:
+Edit `~/Projects/cc-statusline/config/config.json` to customize your statusline:
 
 - **`user.plan`** - Set to `"pro"`, `"max5x"`, or `"max20x"` (your subscription tier)
 - **`limits.*`** - Adjust weekly/context/cost limits if needed
   - Note: `pro` and `max5x` weekly limits are estimated - only `max20x` (850) has been verified
 - **`display.*`** - Change bar length, performance tuning
 - **`colors.*`** - Customize ANSI color codes for each element
-- **`multi_layer.*`** - Adjust layer thresholds (50%, 100%, 105%) and multipliers (2x, 2x, 20x)
+- **`multi_layer.*`** - Adjust layer thresholds (50%, 100%, 105%) - multipliers auto-calculated
+- **`tracking.*`** - Optional: Configure ccusage_r scheme for official Anthropic reset tracking
 
-See `statusline-config.example.json` for all available options with detailed comments.
+See `config/config.example.json` for all available options with detailed comments.
 
 ## Weekly Usage Tracking Calibration (Optional)
 
@@ -130,17 +139,40 @@ If you want weekly tracking to **match your Anthropic console percentage exactly
 | Wrong usage data | Update `user.plan` in config, verify with `ccusage blocks --active` |
 | Colors not working | Check terminal 256-color support |
 
+## Architecture
+
+This plugin uses a **shim architecture** for clean separation:
+
+```
+Claude Code → ~/.claude/statusline.sh (2-line shim)
+                      ↓
+              ~/Projects/cc-statusline/src/statusline.sh (implementation)
+```
+
+The shim provides a stable interface while allowing flexible reorganization of the implementation.
+
 ## File Structure
 
 ```
-claude-statusline/
-├── README.md                        # Documentation
-├── LICENSE                          # MIT License
-├── .gitignore                       # Excludes personal config
-├── install.sh                       # Automated installer
-├── statusline.sh                    # Main statusline script
-├── statusline-config.example.json   # Template configuration
-└── statusline-config.json           # Your personal config (not tracked)
+~/Projects/cc-statusline/          # Installation directory
+├── src/                           # Source code
+│   ├── statusline.sh             # Main implementation
+│   └── statusline-utils.sh       # Optional: Official reset tracking
+├── config/                        # Configuration
+│   ├── config.json               # Your settings (gitignored)
+│   └── config.example.json       # Template
+├── data/                          # Runtime data (gitignored)
+│   ├── .official_weekly_cache
+│   └── statusline-data.json
+├── screenshots/                   # Documentation
+├── install.sh                     # Automated installer
+├── README.md                      # This file
+├── CLAUDE.md                      # Development guide
+├── LICENSE
+└── .gitignore
+
+~/.claude/
+└── statusline.sh                 # Shim script (delegates to src/)
 ```
 
 ## License
@@ -148,6 +180,15 @@ claude-statusline/
 MIT License - See [LICENSE](LICENSE) file for details.
 
 Free to use, modify, and distribute. No warranty provided.
+
+## For Developers
+
+Contributing or modifying the plugin? See [CLAUDE.md](CLAUDE.md) for:
+- Architecture explanation (shim pattern)
+- Development guidelines
+- Testing procedures
+- Git workflow conventions
+- Path reference standards
 
 ## Acknowledgments
 
