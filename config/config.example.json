@@ -66,7 +66,8 @@
   "tracking": {
     "weekly_scheme": "ccusage",
     "official_reset_date": "",
+    "weekly_baseline_percent": 0,
     "cache_duration_seconds": 300,
-    "comment": "Weekly tracking: 'ccusage' (default, uses ISO weeks) or 'ccusage_r' (optional, matches Anthropic console schedule). To use ccusage_r: set official_reset_date from your console's 'Resets [date/time]' (format: 2025-10-08T15:00:00-07:00 for 'Oct 8, 3pm Vancouver'). cache_duration_seconds controls how long ccusage_r results are cached (default: 300 = 5 minutes). See README for setup guide."
+    "comment": "Weekly tracking: 'ccusage' (default, uses ISO weeks) or 'ccusage_r' (optional, matches Anthropic console schedule). To use ccusage_r: set official_reset_date from your console's 'Resets [date/time]' (format: 2025-10-08T15:00:00-07:00 for 'Oct 8, 3pm Vancouver'). weekly_baseline_percent compensates for untracked costs from deleted transcripts (clear/compact commands) - set to the percentage gap between your Anthropic console and statusline (e.g., console 15% vs statusline 10% → set to 5). cache_duration_seconds controls how long ccusage_r results are cached (default: 300 = 5 minutes). See README for setup guide."
   }
 }

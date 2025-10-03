@@ -58,6 +58,7 @@ if [ -f "$CONFIG_FILE" ]; then
     # Tracking settings
     WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme // "ccusage"')
     OFFICIAL_RESET_DATE_ISO=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
+    WEEKLY_BASELINE_PCT=$(echo "$CONFIG" | jq -r '.tracking.weekly_baseline_percent // 0')
     CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds // 300')
 
     # Convert official reset date to Unix timestamp if provided
@@ -105,6 +106,7 @@ else
     SHOW_TIMER=true
     SHOW_SESSIONS=true
     # Default tracking settings
+    WEEKLY_BASELINE_PCT=0
     CACHE_DURATION=300
     # Default color codes
     ORANGE_CODE='\033[1;38;5;208m'
@@ -223,6 +225,13 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
             WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
             WEEK_COST=$(echo "$WEEKLY_DATA" | jq -r '.weekly[-1].totalCost // 0')
         fi
+
+        # Apply baseline offset to account for untracked costs (deleted transcripts)
+        if [ "$(awk "BEGIN {print ($WEEKLY_BASELINE_PCT != 0)}")" = "1" ]; then
+            BASELINE_COST=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT * $WEEKLY_BASELINE_PCT) / 100}")
+            WEEK_COST=$(awk "BEGIN {printf \"%.2f\", $WEEK_COST + $BASELINE_COST}")
+        fi
+
         WEEKLY_PCT=$(awk "BEGIN {printf \"%.0f\", ($WEEK_COST / $WEEKLY_LIMIT) * 100}")
 
         # Extract time data
