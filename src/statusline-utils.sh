@@ -49,27 +49,40 @@ get_anthropic_period() {
 
 # Calculate official Anthropic weekly cost (matches console reset schedule)
 # Uses ccusage blocks data filtered by official reset period
-# Usage: get_official_weekly_cost <next_reset_timestamp>
+# Usage: get_official_weekly_cost <next_reset_timestamp> [cache_duration_seconds]
 # Returns: Total cost for current Anthropic weekly period
 get_official_weekly_cost() {
     local next_reset="${1:?Missing next_reset timestamp}"
+    local cache_duration="${2:-300}"  # Default 5 minutes, configurable
+
     # Get script directory (when sourced, use caller's directory)
     local utils_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local cache_file="$utils_dir/../data/.official_weekly_cache"
-    local cache_duration=300  # 5 minutes
-
-    # Check if cache exists and is fresh
-    if [[ -f "$cache_file" ]]; then
-        local cache_age=$(find "$cache_file" -mtime -5m 2>/dev/null | wc -l | tr -d ' ')
-        if [[ $cache_age -gt 0 ]]; then
-            cat "$cache_file"
-            return 0
-        fi
-    fi
+    local cache_duration_minutes=$((cache_duration / 60))
 
     # Get current Anthropic period boundaries
     local period_data=$(get_anthropic_period "$next_reset")
     local period_start=$(echo "$period_data" | jq -r '.start')
+    local period_end=$(echo "$period_data" | jq -r '.end')
+
+    # Check if cache exists and is fresh
+    if [[ -f "$cache_file" ]]; then
+        # Fix: Use -mmin (minutes) instead of -mtime (days)
+        local cache_age=$(find "$cache_file" -mmin -${cache_duration_minutes} 2>/dev/null | wc -l | tr -d ' ')
+        if [[ $cache_age -gt 0 ]]; then
+            # Read cache and validate format: timestamp|period_start|period_end|weekly_cost
+            local cache_content=$(cat "$cache_file")
+            local cached_period_start=$(echo "$cache_content" | cut -d'|' -f2)
+            local cached_cost=$(echo "$cache_content" | cut -d'|' -f4)
+
+            # Validate: same period AND valid number
+            if [[ "$cached_period_start" == "$period_start" ]] && [[ "$cached_cost" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                echo "$cached_cost"
+                return 0
+            fi
+            # Cache invalid (wrong period or corrupted) - fall through to recalculate
+        fi
+    fi
 
     # Convert period start to ISO 8601 format for comparison with ccusage
     local start_iso=$(timestamp_to_iso "$period_start")
@@ -93,8 +106,12 @@ get_official_weekly_cost() {
     # Format to 2 decimal places
     weekly_cost=$(printf "%.2f" "$weekly_cost")
 
-    # Cache result
-    echo "$weekly_cost" > "$cache_file"
+    # Atomic cache write with period metadata
+    # Format: timestamp|period_start|period_end|weekly_cost
+    local current_ts=$(date +%s)
+    echo "${current_ts}|${period_start}|${period_end}|${weekly_cost}" > "${cache_file}.tmp"
+    mv "${cache_file}.tmp" "$cache_file"
+
     echo "$weekly_cost"
 }
 
