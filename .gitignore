@@ -5,6 +5,13 @@ plugins/
 
 # User-specific configuration (keep only the example)
 statusline-config.json
+config/config.json
+
+# Runtime data
+data/
+
+# Development files
+CLAUDE.md
 
 # Backup files
 *.backup.*
