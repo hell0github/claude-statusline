@@ -58,6 +58,7 @@ if [ -f "$CONFIG_FILE" ]; then
     # Tracking settings
     WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme // "ccusage"')
     OFFICIAL_RESET_DATE_ISO=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
+    CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds // 300')
 
     # Convert official reset date to Unix timestamp if provided
     if [ -n "$OFFICIAL_RESET_DATE_ISO" ]; then
@@ -103,6 +104,8 @@ else
     SHOW_WEEKLY=true
     SHOW_TIMER=true
     SHOW_SESSIONS=true
+    # Default tracking settings
+    CACHE_DURATION=300
     # Default color codes
     ORANGE_CODE='\033[1;38;5;208m'
     RED_CODE='\033[1;31m'
@@ -214,7 +217,7 @@ if [ -n "$WINDOW_DATA" ] && [ "$WINDOW_DATA" != "null" ]; then
         # Get weekly usage based on configured tracking scheme
         if [ "$WEEKLY_SCHEME" = "ccusage_r" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_official_weekly_cost &>/dev/null; then
             # Use ccusage costs filtered by official Anthropic reset schedule
-            WEEK_COST=$(get_official_weekly_cost "$OFFICIAL_RESET_DATE")
+            WEEK_COST=$(get_official_weekly_cost "$OFFICIAL_RESET_DATE" "$CACHE_DURATION")
         else
             # Use ccusage with ISO weeks (default)
             WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
