@@ -53,7 +53,9 @@ get_anthropic_period() {
 # Returns: Total cost for current Anthropic weekly period
 get_official_weekly_cost() {
     local next_reset="${1:?Missing next_reset timestamp}"
-    local cache_file="$HOME/.claude/.official_weekly_cache"
+    # Get script directory (when sourced, use caller's directory)
+    local utils_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cache_file="$utils_dir/../data/.official_weekly_cache"
     local cache_duration=300  # 5 minutes
 
     # Check if cache exists and is fresh

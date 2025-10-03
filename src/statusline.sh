@@ -4,7 +4,7 @@ input=$(cat)
 
 # Configuration file path
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/statusline-config.json"
+CONFIG_FILE="$SCRIPT_DIR/../config/config.json"
 
 # Source utility functions for ccusage_r support (optional)
 if [ -f "$SCRIPT_DIR/statusline-utils.sh" ]; then

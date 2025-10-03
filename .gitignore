@@ -4,7 +4,10 @@ settings.json
 plugins/
 
 # User-specific configuration (keep only the example)
-statusline-config.json
+config/config.json
+
+# Runtime data files (user-specific)
+data/*
 
 # Backup files
 *.backup.*
