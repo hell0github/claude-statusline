@@ -375,7 +375,7 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
             if [ "$SHOW_TOKEN_RATE" = "true" ]; then
                 # TOKENS_PER_MINUTE already extracted above (billable tokens only)
                 if [ -n "$TOKENS_PER_MINUTE" ] && [ "$TOKENS_PER_MINUTE" != "0" ]; then
-                    # Format token rate (e.g., 928 tok/m or 1.2k tok/m)
+                    # Format token rate (e.g., 928/min or 1.2k/min)
                     if (( $(awk "BEGIN {print ($TOKENS_PER_MINUTE >= 1000)}") )); then
                         # Display in thousands for large rates
                         TOKEN_RATE_DISPLAY=$(awk "BEGIN {printf \"%.1fk\", $TOKENS_PER_MINUTE / 1000}")
@@ -383,7 +383,7 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
                         # Display as integer for small rates
                         TOKEN_RATE_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $TOKENS_PER_MINUTE}")
                     fi
-                    TOKEN_RATE="${TOKEN_RATE_DISPLAY} tok/m"
+                    TOKEN_RATE="${TOKEN_RATE_DISPLAY}/min"
                 fi
             fi
         fi
