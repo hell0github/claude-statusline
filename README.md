@@ -6,11 +6,13 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 
 - **Accurate context window tracking** - Counts reserved context space for Claude Sonnet 4.5
 - **Cost usage tracking** - Re-calibrated to official '/usage' tracker, inspired by [Claude-Code-Usage-Monitor](https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor), based on real Sonnet 4.5 API pricing
+- **Daily usage tracking** - 24-hour cycle tracker aligned with weekly reset schedule, shows percentage of weekly limit consumed today with end-of-day projection
 - **Multi-layer progression system** - Configurable thresholds (default: 30%/50%/100%) with auto-calculated display speeds for optimal visual feedback
 - **Weekly usage tracking** - Calibrated to official /usage data
-- **Linear cost prediction** - Projects usage to end of 5-hour session
+- **Linear cost prediction** - Projects usage to end of 5-hour session and end of day
 - **5-hour session reset/left time tracking** - Displays countdown until session limit resets
 - **Active Claude Code sessions tracking** - Monitors concurrent sessions across projects
+- **Conditional section rendering** - Only computes enabled sections for improved performance
 - **Lightweight bash implementation** - Runs entirely in shell, no heavy dependencies
 - **Fully customizable** - Config file with feature toggles for enabling/disabling components
 - **Privacy-first design** - Personal config excluded from version control
@@ -25,7 +27,7 @@ A custom statusline for [Claude Code 2.x](https://claude.com/claude-code) that p
 ## Example Output
 
 ```
-.claude | 45k/168k [████████░░] | $32/$140 [█████░░░░░] 23% | weekly 18% | 3h 42m | ×2
+.claude | 45k/168k [████████░░] | $32/$140 [█████░░░░░] 23% | daily [██░░░░░░░░] 6% | weekly 18% | 3h 42m | ×2
 ```
 
 ![Statusline Screenshot](./example/statusline.png)
@@ -95,8 +97,11 @@ Edit `~/Projects/cc-statusline/config/config.json` to customize your statusline:
   - Note: `pro` and `max5x` weekly limits are estimated - only `max20x` (850) has been verified
 - **`display.*`** - Change bar length, performance tuning
 - **`colors.*`** - Customize ANSI color codes for each element
-- **`multi_layer.*`** - Adjust layer thresholds (50%, 100%, 105%) - multipliers auto-calculated
-- **`tracking.*`** - Optional: Configure ccusage_r scheme for official Anthropic reset tracking
+- **`multi_layer.*`** - Adjust layer thresholds (30%/50%/100%) for 5-hour window - multipliers auto-calculated
+- **`daily_layer.*`** - Adjust daily thresholds (4.76%/9.52%/14.29% of weekly limit) - represents 1/3, 2/3, and full daily expected usage
+- **`sections.*`** - Toggle visibility of individual sections (directory, context, 5-hour window, daily, weekly, timer, sessions)
+- **`tracking.*`** - Configure weekly tracking scheme
+  - **Required for daily tracking**: Set `official_reset_date` to enable daily usage feature (see Weekly Usage Tracking section below)
 
 See `config/config.example.json` for all available options with detailed comments.
 
@@ -133,19 +138,23 @@ Your observed reality:
 
 **Note**: The baseline applies to **all tracking schemes** (both `ccusage` and `ccusage_r`). If you don't delete transcripts, keep this at `0` (default).
 
-## Weekly Usage Tracking Calibration (Optional)
+## Daily and Weekly Usage Tracking Calibration
 
 **Note**: By default, weekly tracking uses ISO weeks (Monday-Sunday) via ccusage. This may show different percentages than the Anthropic console, which uses custom reset cycles (e.g., Wednesday 3pm → Wednesday 3pm).
 
-If you want weekly tracking to **match your Anthropic console percentage exactly**, you can optionally configure the `ccusage_r` scheme:
+### Configure Official Reset Schedule (Enables Daily Tracker)
 
-### Optional: Configure Official Reset Schedule
+Setting the official reset date **enables two features**:
+1. **Daily usage tracking** - 24-hour cycle tracker with end-of-day projection
+2. **Weekly tracking calibration** - Match Anthropic console percentage exactly (when using `ccusage_r` scheme)
+
+**Setup steps:**
 
 1. **Find your reset date** at [console.anthropic.com](https://console.anthropic.com):
    - Go to Usage tab
    - Look for "Resets [date/time]" text (e.g., "Resets Oct 8, 3pm")
 
-2. **Update your config** (`~/.claude/statusline-config.json`):
+2. **Update your config** (`~/Projects/cc-statusline/config/config.json`):
 ```json
 {
   "tracking": {
@@ -160,7 +169,11 @@ If you want weekly tracking to **match your Anthropic console percentage exactly
    - Example: "Oct 8, 3pm Vancouver" → `2025-10-08T15:00:00-07:00` (PDT = UTC-7)
    - You only need to update this once; it auto-calculates future periods
 
-**Result**: Weekly percentage will match Anthropic console, useful for monitoring actual limits.
+**Results**:
+- Daily tracker will appear in your statusline showing today's usage as % of weekly limit
+- Weekly percentage will match Anthropic console (if using `ccusage_r` scheme)
+
+**Note**: Daily tracking works with either `ccusage` or `ccusage_r` weekly schemes - only `official_reset_date` is required.
 
 ## Troubleshooting
 
@@ -190,13 +203,14 @@ The shim provides a stable interface while allowing flexible reorganization of t
 ~/Projects/cc-statusline/          # Installation directory
 ├── src/                           # Source code
 │   ├── statusline.sh             # Main implementation
-│   └── statusline-utils.sh       # Optional: Official reset tracking
+│   └── statusline-utils.sh       # Daily/weekly tracking utilities
 ├── config/                        # Configuration
 │   ├── config.json               # Your settings (gitignored)
 │   └── config.example.json       # Template
 ├── data/                          # Runtime data (gitignored)
-│   ├── .official_weekly_cache
-│   └── statusline-data.json
+│   ├── .daily_cache              # Daily cost cache
+│   ├── .official_weekly_cache    # Weekly cost cache
+│   └── statusline-data.json      # Legacy cache (deprecated)
 ├── example/                       # Example screenshot
 ├── install.sh                     # Automated installer
 ├── README.md                      # This file
