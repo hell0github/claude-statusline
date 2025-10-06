@@ -74,17 +74,9 @@ if [ -f "$CONFIG_FILE" ]; then
 
     # Tracking settings
     WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme // "ccusage"')
-    OFFICIAL_RESET_DATE_ISO=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
+    OFFICIAL_RESET_DATE=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
     WEEKLY_BASELINE_PCT=$(echo "$CONFIG" | jq -r '.tracking.weekly_baseline_percent // 0')
     CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds // 300')
-
-    # Convert official reset date to Unix timestamp if provided
-    if [ -n "$OFFICIAL_RESET_DATE_ISO" ]; then
-        OFFICIAL_RESET_DATE=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$OFFICIAL_RESET_DATE_ISO" +%s 2>/dev/null || \
-                              date -d "$OFFICIAL_RESET_DATE_ISO" +%s 2>/dev/null || echo "")
-    else
-        OFFICIAL_RESET_DATE=""
-    fi
 
     # Color codes
     ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.orange // "\\033[1;38;5;208m"' | sed 's/\\\\/\\/g')
@@ -487,7 +479,9 @@ if [ "$SHOW_WEEKLY" = "true" ]; then
     # Get weekly usage based on configured tracking scheme
     if [ "$WEEKLY_SCHEME" = "ccusage_r" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_official_weekly_cost &>/dev/null; then
         # Use ccusage costs filtered by official Anthropic reset schedule
-        WEEK_COST=$(get_official_weekly_cost "$OFFICIAL_RESET_DATE" "$CACHE_DURATION")
+        # Convert ISO timestamp to Unix format
+        RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+        WEEK_COST=$(get_official_weekly_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
     else
         # Use ccusage with ISO weeks (default)
         WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
@@ -508,7 +502,11 @@ fi
 # ====================================================================================
 if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily_cost &>/dev/null; then
     # Use daily cost tracking based on official reset time
-    DAILY_COST=$(get_daily_cost "$OFFICIAL_RESET_DATE" "$CACHE_DURATION")
+    # Convert ISO timestamp to Unix format (reuse RESET_TIMESTAMP if already computed for weekly)
+    if [ -z "${RESET_TIMESTAMP:-}" ]; then
+        RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+    fi
+    DAILY_COST=$(get_daily_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
 
     # Calculate projection to end of current 5-hour window
     # Formula: daily_cost - current_window_cost + projected_window_cost
@@ -575,8 +573,9 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
             DAILY_PROJECTED_POS=$BAR_LENGTH
         fi
 
-        # Don't show separator if it's at same position as current
-        if [ $DAILY_PROJECTED_POS -eq $DAILY_FILLED ]; then
+        # Don't show separator if projection equals current cost (no actual projection)
+        # Use cost comparison instead of position to handle rounding cases
+        if (( $(awk "BEGIN {print ($DAILY_PROJECTED_COST == $DAILY_COST)}") )); then
             DAILY_PROJECTED_POS=-1
         fi
     fi
