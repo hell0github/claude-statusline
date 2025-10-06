@@ -15,6 +15,17 @@ timestamp_to_iso() {
         date -u -d "@$timestamp" +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+# Convert ISO 8601 timestamp to Unix timestamp
+# Usage: iso_to_timestamp <iso_string>
+# Returns: Unix timestamp (seconds since epoch)
+iso_to_timestamp() {
+    local iso_string="${1:?Missing ISO timestamp}"
+    # macOS (BSD date) - using -j prevents setting system time, -f specifies input format
+    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$iso_string" "+%s" 2>/dev/null || \
+        # GNU date - simpler syntax
+        date -d "$iso_string" "+%s"
+}
+
 # Calculate current Anthropic weekly period boundaries
 # Anthropic uses fixed reset cycles (e.g., Wed 3pm → Wed 3pm in America/Vancouver timezone)
 # Usage: get_anthropic_period <next_reset_timestamp>
@@ -228,6 +239,7 @@ get_official_weekly_cost() {
 # Export functions for use in other scripts
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     export -f timestamp_to_iso
+    export -f iso_to_timestamp
     export -f get_anthropic_period
     export -f get_daily_period
     export -f get_daily_cost

@@ -44,10 +44,39 @@ if [[ ! -f "$UTILS_FILE" ]]; then
 fi
 
 # Parse arguments
-if [[ $# -ne 1 ]]; then
-    echo -e "${YELLOW}Usage: $0 <official_usage_percent>${RESET}" >&2
+AUTO_CONFIRM=false
+OFFICIAL_PCT=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -y|--yes)
+            AUTO_CONFIRM=true
+            shift
+            ;;
+        -*)
+            echo -e "${RED}Error: Unknown option '$1'${RESET}" >&2
+            exit 1
+            ;;
+        *)
+            if [[ -z "$OFFICIAL_PCT" ]]; then
+                OFFICIAL_PCT="$1"
+            else
+                echo -e "${RED}Error: Unexpected argument '$1'${RESET}" >&2
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$OFFICIAL_PCT" ]]; then
+    echo -e "${YELLOW}Usage: $0 [-y|--yes] <official_usage_percent>${RESET}" >&2
+    echo ""
+    echo "Options:" >&2
+    echo "  -y, --yes    Auto-confirm (non-interactive mode)" >&2
     echo ""
     echo "Example: $0 18.5" >&2
+    echo "Example: $0 -y 18.5  (non-interactive)" >&2
     echo ""
     echo "Steps to calibrate:"
     echo "  1. Check Anthropic console for current weekly usage percentage"
@@ -55,8 +84,6 @@ if [[ $# -ne 1 ]]; then
     echo "  3. Statusline will now match official usage"
     exit 1
 fi
-
-OFFICIAL_PCT="$1"
 
 # Validate official percentage
 if ! [[ "$OFFICIAL_PCT" =~ ^[0-9]+(\.[0-9]+)?$ ]] || (($(echo "$OFFICIAL_PCT < 0" | bc -l))); then
@@ -105,8 +132,11 @@ echo ""
 # Get current tracked usage (without baseline)
 echo -e "${CYAN}Calculating current tracked usage...${RESET}"
 
+# Convert ISO reset date to Unix timestamp
+RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+
 # Calculate tracked percentage from ccusage_r
-WEEKLY_COST=$(get_official_weekly_cost "$OFFICIAL_RESET_DATE" 0)
+WEEKLY_COST=$(get_official_weekly_cost "$RESET_TIMESTAMP" 0)
 
 # Get weekly limit based on plan
 case "$USER_PLAN" in
@@ -156,11 +186,15 @@ if (($(echo "${GAP#-} > 20" | bc -l))); then
 fi
 
 # Confirm update
-read -p "Update baseline to ${NEW_BASELINE}%? [y/N] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${YELLOW}Calibration cancelled${RESET}"
-    exit 0
+if [[ "$AUTO_CONFIRM" == "false" ]]; then
+    read -p "Update baseline to ${NEW_BASELINE}%? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Calibration cancelled${RESET}"
+        exit 0
+    fi
+else
+    echo -e "${GREEN}Auto-confirming update (non-interactive mode)${RESET}"
 fi
 
 # Update config
