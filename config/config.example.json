@@ -27,41 +27,60 @@
     "comment": "Display settings: progress bar length, lines to read from transcript, minutes for active session detection"
   },
   "colors": {
-    "orange": "\\033[1;38;5;208m",
-    "red": "\\033[1;31m",
+    "orange": "\\033[1;93m",
+    "red": "\\033[31m",
     "pink": "\\033[38;5;225m",
     "green": "\\033[38;5;194m",
     "purple": "\\033[35m",
     "cyan": "\\033[96m",
     "reset": "\\033[0m",
-    "comment": "ANSI color codes for statusline elements - customize to your preference"
+    "comment": "ANSI color codes for statusline elements. Remove '1;' prefix for normal weight, add '1;' for bold (e.g., \\033[1;31m)"
   },
   "multi_layer": {
     "layer1": {
-      "threshold_percent": 50,
+      "threshold_percent": 30,
       "color": "green",
-      "comment": "Layer 1: 0-50% actual usage (green) - multiplier auto-calculated"
+      "comment": "Layer 1: 0-30% usage. Color options: green, orange, red, pink, purple, cyan"
     },
     "layer2": {
-      "threshold_percent": 100,
+      "threshold_percent": 50,
       "color": "orange",
-      "comment": "Layer 2: 50-100% actual usage (orange) - multiplier auto-calculated"
+      "comment": "Layer 2: 30-50% usage. Color options: green, orange, red, pink, purple, cyan"
     },
     "layer3": {
-      "threshold_percent": 105,
+      "threshold_percent": 100,
       "color": "red",
-      "comment": "Layer 3: 100-105% actual usage (red) - multiplier auto-calculated"
+      "comment": "Layer 3: 50-100% usage. Color options: green, orange, red, pink, purple, cyan"
     },
-    "comment": "Multipliers are automatically calculated: 100/threshold_range to fill bar at each threshold"
+    "comment": "Thresholds define when color changes. Colors must match keys in 'colors' section. Scale multipliers auto-calculated."
+  },
+  "daily_layer": {
+    "layer1": {
+      "threshold_percent": 4.76,
+      "color": "green",
+      "comment": "Layer 1: 0-4.76% of weekly limit (1/3 of daily expected usage)"
+    },
+    "layer2": {
+      "threshold_percent": 9.52,
+      "color": "orange",
+      "comment": "Layer 2: 4.76-9.52% of weekly limit (2/3 of daily expected usage)"
+    },
+    "layer3": {
+      "threshold_percent": 14.29,
+      "color": "red",
+      "comment": "Layer 3: 9.52-14.29% of weekly limit (100% of daily expected usage)"
+    },
+    "comment": "Daily usage thresholds as percentage of weekly limit. Default values represent 1/3, 2/3, and 3/3 of expected daily usage (weekly_limit/7). Scale multipliers auto-calculated."
   },
   "sections": {
     "show_directory": true,
     "show_context": true,
-    "show_cost": true,
+    "show_five_hour_window": true,
+    "show_daily": true,
     "show_weekly": true,
     "show_timer": true,
     "show_sessions": true,
-    "comment": "Toggle visibility of statusline sections - set to false to hide any section"
+    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_sessions: active session count."
   },
   "tracking": {
     "weekly_scheme": "ccusage",
