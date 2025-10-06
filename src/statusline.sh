@@ -51,19 +51,16 @@ if [ -f "$CONFIG_FILE" ]; then
     LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
     LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
 
-    # Daily layer settings - load thresholds and colors
-    DAILY_LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.threshold_percent // 4.76')
-    DAILY_LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.threshold_percent // 9.52')
-    DAILY_LAYER3_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer3.threshold_percent // 14.29')
+    # Daily layer settings - load thresholds and colors (two-layer system)
+    DAILY_LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.threshold_percent // 14.29')
+    DAILY_LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.threshold_percent // 21.44')
 
     DAILY_LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.color // "green"')
     DAILY_LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.color // "orange"')
-    DAILY_LAYER3_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer3.color // "red"')
 
     # Calculate daily multipliers dynamically based on thresholds
     DAILY_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $DAILY_LAYER1_THRESHOLD}")
     DAILY_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_LAYER2_THRESHOLD - $DAILY_LAYER1_THRESHOLD)}")
-    DAILY_LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_LAYER3_THRESHOLD - $DAILY_LAYER2_THRESHOLD)}")
 
     # Section toggles (use 'if null' to avoid treating false as falsy)
     SHOW_DIRECTORY=$(echo "$CONFIG" | jq -r 'if .sections.show_directory == null then "true" else .sections.show_directory | tostring end')
@@ -120,17 +117,14 @@ else
     LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
     LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
     LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
-    # Default daily layer settings
-    DAILY_LAYER1_THRESHOLD=4.76
-    DAILY_LAYER2_THRESHOLD=9.52
-    DAILY_LAYER3_THRESHOLD=14.29
+    # Default daily layer settings (two-layer system)
+    DAILY_LAYER1_THRESHOLD=14.29
+    DAILY_LAYER2_THRESHOLD=21.44
     DAILY_LAYER1_COLOR="green"
     DAILY_LAYER2_COLOR="orange"
-    DAILY_LAYER3_COLOR="red"
     # Calculate daily multipliers dynamically
     DAILY_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $DAILY_LAYER1_THRESHOLD}")
     DAILY_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_LAYER2_THRESHOLD - $DAILY_LAYER1_THRESHOLD)}")
-    DAILY_LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_LAYER3_THRESHOLD - $DAILY_LAYER2_THRESHOLD)}")
     # Default section toggles (all strings for consistency)
     SHOW_DIRECTORY="true"
     SHOW_CONTEXT="true"
@@ -204,13 +198,14 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ]; then
         BLOCK=$(echo "$WINDOW_DATA" | jq -r '.blocks[0] // empty')
 
         if [ -n "$BLOCK" ]; then
+            # Extract cost and projection data (needed by daily projection)
+            COST=$(echo "$BLOCK" | jq -r '.costUSD // 0')
+            PROJECTED_COST=$(echo "$BLOCK" | jq -r '.projection.totalCost // 0')
+
             # ========================================================================
-            # 5-HOUR WINDOW SECTION (conditional)
+            # 5-HOUR WINDOW SECTION (conditional display)
             # ========================================================================
             if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ]; then
-                # Extract cost and projection
-                COST=$(echo "$BLOCK" | jq -r '.costUSD // 0')
-                PROJECTED_COST=$(echo "$BLOCK" | jq -r '.projection.totalCost // 0')
 
                 # Multi-layer progress bar (using config-defined settings)
                 # Calculate actual percentage
@@ -476,48 +471,39 @@ if [ "$SHOW_WEEKLY" = "true" ]; then
 fi
 
 # ====================================================================================
-# DAILY SECTION (independent)
+# DAILY SECTION (depends on 5-hour window data for projection)
 # ====================================================================================
 if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily_cost &>/dev/null; then
     # Use daily cost tracking based on official reset time
     DAILY_COST=$(get_daily_cost "$OFFICIAL_RESET_DATE" "$CACHE_DURATION")
 
-    # Get daily period boundaries for projection calculation
-    DAILY_PERIOD_DATA=$(get_daily_period "$OFFICIAL_RESET_DATE")
-    DAILY_PERIOD_START=$(echo "$DAILY_PERIOD_DATA" | jq -r '.start')
-    DAILY_CURRENT_TIME=$(echo "$DAILY_PERIOD_DATA" | jq -r '.end')
-
-    # Calculate projection for end of day
-    DAILY_ELAPSED=$((DAILY_CURRENT_TIME - DAILY_PERIOD_START))
-    DAILY_TOTAL_PERIOD=86400  # 24 hours in seconds
-
-    # Project daily cost (extrapolate to full 24-hour period)
-    if [ $DAILY_ELAPSED -gt 0 ]; then
-        DAILY_PROJECTED_COST=$(awk "BEGIN {printf \"%.2f\", ($DAILY_COST / $DAILY_ELAPSED) * $DAILY_TOTAL_PERIOD}")
+    # Calculate projection to end of current 5-hour window
+    # Formula: daily_cost - current_window_cost + projected_window_cost
+    # This gives us: accumulated daily usage + what the current session will add
+    if [ -n "${COST:-}" ] && [ -n "${PROJECTED_COST:-}" ]; then
+        # We have 5-hour window data available
+        DAILY_PROJECTED_COST=$(awk "BEGIN {printf \"%.2f\", $DAILY_COST - $COST + $PROJECTED_COST}")
     else
-        DAILY_PROJECTED_COST=0
+        # No active 5-hour window, daily projection = current daily cost
+        DAILY_PROJECTED_COST=$DAILY_COST
     fi
 
     # Calculate daily percentage (against weekly limit)
     DAILY_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_COST / $WEEKLY_LIMIT) * 100}")
 
-    # Build daily progress bar (multi-layer visualization)
+    # Build daily progress bar (two-layer visualization)
     # Determine layer and calculate visual progress
     if (( $(awk "BEGIN {print ($DAILY_PCT <= $DAILY_LAYER1_THRESHOLD)}") )); then
-        # Layer 1: 0-threshold% actual → 0-100% visual
+        # Layer 1: 0-14.29% actual (normal usage) → 0-100% visual
         DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PCT * $DAILY_LAYER1_MULTIPLIER}")
         DAILY_BAR_COLOR="$DAILY_LAYER1_COLOR"
-    elif (( $(awk "BEGIN {print ($DAILY_PCT <= $DAILY_LAYER2_THRESHOLD)}") )); then
-        # Layer 2: threshold1-threshold2% actual → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
-        DAILY_BAR_COLOR="$DAILY_LAYER2_COLOR"
     else
-        # Layer 3: threshold2-threshold3% actual → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_LAYER2_THRESHOLD) * $DAILY_LAYER3_MULTIPLIER}")
+        # Layer 2: 14.29-21.44% actual (exceeding) → 0-100% visual
+        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
         if (( $(awk "BEGIN {print ($DAILY_VISUAL_PCT > 100)}") )); then
             DAILY_VISUAL_PCT=100
         fi
-        DAILY_BAR_COLOR="$DAILY_LAYER3_COLOR"
+        DAILY_BAR_COLOR="$DAILY_LAYER2_COLOR"
     fi
 
     # Calculate filled blocks based on visual percentage
@@ -535,19 +521,16 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
         # Determine projection color based on which layer it falls into
         if (( $(awk "BEGIN {print ($DAILY_PROJECTED_ACTUAL_PCT <= $DAILY_LAYER1_THRESHOLD)}") )); then
             DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER1_COLOR"
-        elif (( $(awk "BEGIN {print ($DAILY_PROJECTED_ACTUAL_PCT <= $DAILY_LAYER2_THRESHOLD)}") )); then
-            DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER2_COLOR"
         else
-            DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER3_COLOR"
+            DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER2_COLOR"
         fi
 
         # Calculate visual position using CURRENT layer's multiplier (same scale as current bar)
         if [ "$DAILY_BAR_COLOR" = "$DAILY_LAYER1_COLOR" ]; then
             DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PROJECTED_ACTUAL_PCT * $DAILY_LAYER1_MULTIPLIER}")
-        elif [ "$DAILY_BAR_COLOR" = "$DAILY_LAYER2_COLOR" ]; then
-            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_ACTUAL_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
         else
-            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_ACTUAL_PCT - $DAILY_LAYER2_THRESHOLD) * $DAILY_LAYER3_MULTIPLIER}")
+            # Layer 2
+            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_ACTUAL_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
         fi
 
         if (( $(awk "BEGIN {print ($DAILY_PROJECTED_VISUAL_PCT > 100)}") )); then
