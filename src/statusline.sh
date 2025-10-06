@@ -69,6 +69,7 @@ if [ -f "$CONFIG_FILE" ]; then
     SHOW_DAILY=$(echo "$CONFIG" | jq -r 'if .sections.show_daily == null then "true" else .sections.show_daily | tostring end')
     SHOW_WEEKLY=$(echo "$CONFIG" | jq -r 'if .sections.show_weekly == null then "true" else .sections.show_weekly | tostring end')
     SHOW_TIMER=$(echo "$CONFIG" | jq -r 'if .sections.show_timer == null then "true" else .sections.show_timer | tostring end')
+    SHOW_TOKEN_RATE=$(echo "$CONFIG" | jq -r 'if .sections.show_token_rate == null then "true" else .sections.show_token_rate | tostring end')
     SHOW_SESSIONS=$(echo "$CONFIG" | jq -r 'if .sections.show_sessions == null then "true" else .sections.show_sessions | tostring end')
 
     # Tracking settings
@@ -132,6 +133,7 @@ else
     SHOW_DAILY="true"
     SHOW_WEEKLY="true"
     SHOW_TIMER="true"
+    SHOW_TOKEN_RATE="true"
     SHOW_SESSIONS="true"
     # Default tracking settings
     WEEKLY_BASELINE_PCT=0
@@ -186,9 +188,9 @@ TRANSCRIPT_PATH=$(echo "$input" | jq -r '.transcript_path // ""')
 # SECTION CALCULATIONS (Conditional based on toggles)
 # ====================================================================================
 
-# Get 5-hour window data from ccusage (needed by 5-HOUR WINDOW and/or TIMER sections)
+# Get 5-hour window data from ccusage (needed by 5-HOUR WINDOW, TIMER, and/or TOKEN_RATE sections)
 # Only fetch if at least one of these sections is enabled
-if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ]; then
+if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SHOW_TOKEN_RATE" = "true" ]; then
     # Use --offline for faster execution with cached pricing
     # Filter out npm warnings and capture only the JSON
     WINDOW_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" blocks --active --json --token-limit $TOKEN_LIMIT --offline 2>/dev/null | awk '/^{/,0')
@@ -200,7 +202,20 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ]; then
         if [ -n "$BLOCK" ]; then
             # Extract cost and projection data (needed by daily projection)
             COST=$(echo "$BLOCK" | jq -r '.costUSD // 0')
-            PROJECTED_COST=$(echo "$BLOCK" | jq -r '.projection.totalCost // 0')
+
+            # Extract burn rate data for more accurate projection
+            COST_PER_HOUR=$(echo "$BLOCK" | jq -r '.burnRate.costPerHour // 0')
+            REMAINING_MINUTES=$(echo "$BLOCK" | jq -r '.projection.remainingMinutes // 0')
+            TOKENS_PER_MINUTE=$(echo "$BLOCK" | jq -r '.burnRate.tokensPerMinuteForIndicator // 0')
+
+            # Calculate burn-rate based projection (more accurate for recent activity)
+            # Formula: current_cost + (burn_rate × remaining_time)
+            if [ "$COST_PER_HOUR" != "0" ] && [ "$REMAINING_MINUTES" != "0" ]; then
+                PROJECTED_COST=$(awk "BEGIN {printf \"%.2f\", $COST + ($COST_PER_HOUR * $REMAINING_MINUTES / 60)}")
+            else
+                # Fallback to ccusage's linear projection if burn rate unavailable
+                PROJECTED_COST=$(echo "$BLOCK" | jq -r '.projection.totalCost // 0')
+            fi
 
             # ========================================================================
             # 5-HOUR WINDOW SECTION (conditional display)
@@ -351,6 +366,24 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ]; then
                     RESET_INFO="$CURRENT_TIME${DIM_CODE}/$RESET_TIME ($TIME_LEFT)${RESET_CODE}"
                 else
                     RESET_INFO="$TIME_LEFT"
+                fi
+            fi
+
+            # ========================================================================
+            # TOKEN RATE SECTION (conditional)
+            # ========================================================================
+            if [ "$SHOW_TOKEN_RATE" = "true" ]; then
+                # TOKENS_PER_MINUTE already extracted above (billable tokens only)
+                if [ -n "$TOKENS_PER_MINUTE" ] && [ "$TOKENS_PER_MINUTE" != "0" ]; then
+                    # Format token rate (e.g., 928 tok/m or 1.2k tok/m)
+                    if (( $(awk "BEGIN {print ($TOKENS_PER_MINUTE >= 1000)}") )); then
+                        # Display in thousands for large rates
+                        TOKEN_RATE_DISPLAY=$(awk "BEGIN {printf \"%.1fk\", $TOKENS_PER_MINUTE / 1000}")
+                    else
+                        # Display as integer for small rates
+                        TOKEN_RATE_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $TOKENS_PER_MINUTE}")
+                    fi
+                    TOKEN_RATE="${TOKEN_RATE_DISPLAY} tok/m"
                 fi
             fi
         fi
@@ -608,6 +641,7 @@ fi
 
 [[ "$SHOW_WEEKLY" == "true" ]] && [[ -n "${WEEKLY_PCT:-}" ]] && STATUSLINE_SECTIONS+=("weekly ${WEEKLY_PCT}%")
 [[ "$SHOW_TIMER" == "true" ]] && [[ -n "${RESET_INFO:-}" ]] && STATUSLINE_SECTIONS+=("${PURPLE_CODE}${RESET_INFO}${RESET_CODE}")
+[[ "$SHOW_TOKEN_RATE" == "true" ]] && [[ -n "${TOKEN_RATE:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}${TOKEN_RATE}${RESET_CODE}")
 [[ "$SHOW_SESSIONS" == "true" ]] && [[ -n "${ACTIVE_SESSIONS:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
 
 # Join sections with separator

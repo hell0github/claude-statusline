@@ -74,8 +74,9 @@
     "show_daily": true,
     "show_weekly": true,
     "show_timer": true,
+    "show_token_rate": true,
     "show_sessions": true,
-    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_sessions: active session count."
+    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_token_rate: current token burn rate (tokens/min). show_sessions: active session count."
   },
   "tracking": {
     "weekly_scheme": "ccusage",
