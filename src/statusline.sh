@@ -12,6 +12,11 @@ if [ -f "$SCRIPT_DIR/statusline-utils.sh" ]; then
     source "$SCRIPT_DIR/statusline-utils.sh"
 fi
 
+# Source layer calculation functions
+if [ -f "$SCRIPT_DIR/statusline-layers.sh" ]; then
+    source "$SCRIPT_DIR/statusline-layers.sh"
+fi
+
 # Load configuration from JSON file if it exists
 if [ -f "$CONFIG_FILE" ]; then
     CONFIG=$(cat "$CONFIG_FILE")
@@ -256,39 +261,29 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
             # ========================================================================
             if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ]; then
 
-                # Calculate layer thresholds from base (COST_LIMIT) and multipliers
-                LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER1_THRESHOLD_MULT}")
-                LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER2_THRESHOLD_MULT}")
-                LAYER3_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER3_THRESHOLD_MULT}")
-
-                # Calculate visual scale multipliers
-                LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
-                LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
-                LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
-
                 # Calculate actual percentage
                 ACTUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($COST / $COST_LIMIT) * 100}")
 
-                # Determine layer and calculate visual progress
-                if (( $(awk "BEGIN {print ($ACTUAL_PCT <= $LAYER1_THRESHOLD)}") )); then
-                    VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $ACTUAL_PCT * $LAYER1_MULTIPLIER}")
-                    BAR_COLOR="$LAYER1_COLOR"
-                elif (( $(awk "BEGIN {print ($ACTUAL_PCT <= $LAYER2_THRESHOLD)}") )); then
-                    VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($ACTUAL_PCT - $LAYER1_THRESHOLD) * $LAYER2_MULTIPLIER}")
-                    BAR_COLOR="$LAYER2_COLOR"
-                else
-                    VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($ACTUAL_PCT - $LAYER2_THRESHOLD) * $LAYER3_MULTIPLIER}")
-                    if (( $(awk "BEGIN {print ($VISUAL_PCT > 100)}") )); then
-                        VISUAL_PCT=100
-                    fi
-                    BAR_COLOR="$LAYER3_COLOR"
-                fi
+                # Calculate layer metrics using generic function
+                LAYER_RESULT=$(calculate_three_layer_metrics \
+                    "$ACTUAL_PCT" \
+                    "$COST_LIMIT" \
+                    "$LAYER1_THRESHOLD_MULT" \
+                    "$LAYER2_THRESHOLD_MULT" \
+                    "$LAYER3_THRESHOLD_MULT" \
+                    "$LAYER1_COLOR" \
+                    "$LAYER2_COLOR" \
+                    "$LAYER3_COLOR" \
+                    "$BAR_LENGTH")
+                IFS='|' read -r LAYER_NUM VISUAL_PCT BAR_COLOR FILLED <<< "$LAYER_RESULT"
 
-                # Calculate filled blocks based on visual percentage
-                FILLED=$(awk "BEGIN {printf \"%.0f\", ($VISUAL_PCT / 100) * $BAR_LENGTH}")
-                if [ $FILLED -gt $BAR_LENGTH ]; then
-                    FILLED=$BAR_LENGTH
-                fi
+                # Calculate layer thresholds and multipliers (needed for projection logic below)
+                LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER1_THRESHOLD_MULT}")
+                LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER2_THRESHOLD_MULT}")
+                LAYER3_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER3_THRESHOLD_MULT}")
+                LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
+                LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
+                LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
 
                 # Calculate projected position using CURRENT layer's multiplier for consistent scale
                 PROJECTED_POS=-1
@@ -489,48 +484,24 @@ if [ "$SHOW_CONTEXT" = "true" ] && [ -f "$TRANSCRIPT_PATH" ]; then
         CONTEXT_TOKENS=0
     fi
 
-    # Calculate context layer thresholds from base (CONTEXT_LIMIT) and multipliers
-    CTX_LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER1_THRESHOLD_MULT}")
-    CTX_LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER2_THRESHOLD_MULT}")
-    CTX_LAYER3_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER3_THRESHOLD_MULT}")
-
-    # Calculate visual scale multipliers
-    CTX_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $CTX_LAYER1_THRESHOLD}")
-    CTX_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($CTX_LAYER2_THRESHOLD - $CTX_LAYER1_THRESHOLD)}")
-    CTX_LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($CTX_LAYER3_THRESHOLD - $CTX_LAYER2_THRESHOLD)}")
-
-    # Determine layer and calculate visual progress
-    if (( $(awk "BEGIN {print ($CONTEXT_TOKENS <= $CTX_LAYER1_THRESHOLD)}") )); then
-        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $CONTEXT_TOKENS * $CTX_LAYER1_MULTIPLIER}")
-        CTX_COLOR_NAME="$CTX_LAYER1_COLOR"
-    elif (( $(awk "BEGIN {print ($CONTEXT_TOKENS <= $CTX_LAYER2_THRESHOLD)}") )); then
-        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($CONTEXT_TOKENS - $CTX_LAYER1_THRESHOLD) * $CTX_LAYER2_MULTIPLIER}")
-        CTX_COLOR_NAME="$CTX_LAYER2_COLOR"
-    else
-        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($CONTEXT_TOKENS - $CTX_LAYER2_THRESHOLD) * $CTX_LAYER3_MULTIPLIER}")
-        if (( $(awk "BEGIN {print ($CTX_VISUAL_PCT > 100)}") )); then
-            CTX_VISUAL_PCT=100
-        fi
-        CTX_COLOR_NAME="$CTX_LAYER3_COLOR"
-    fi
+    # Calculate layer metrics using generic function
+    CTX_LAYER_RESULT=$(calculate_three_layer_metrics \
+        "$CONTEXT_TOKENS" \
+        "$CONTEXT_LIMIT" \
+        "$CTX_LAYER1_THRESHOLD_MULT" \
+        "$CTX_LAYER2_THRESHOLD_MULT" \
+        "$CTX_LAYER3_THRESHOLD_MULT" \
+        "$CTX_LAYER1_COLOR" \
+        "$CTX_LAYER2_COLOR" \
+        "$CTX_LAYER3_COLOR" \
+        "$BAR_LENGTH")
+    IFS='|' read -r CTX_LAYER_NUM CTX_VISUAL_PCT CTX_COLOR_NAME CTX_FILLED <<< "$CTX_LAYER_RESULT"
 
     # Get color code from color name
     CTX_COLOR=$(get_color_code "$CTX_COLOR_NAME")
 
     # Create context progress bar (same length as cost bar)
     CTX_BAR_LENGTH=$BAR_LENGTH
-
-    # Calculate filled blocks based on visual percentage
-    CTX_FILLED=$(awk "BEGIN {printf \"%.0f\", ($CTX_VISUAL_PCT / 100) * $CTX_BAR_LENGTH}")
-
-    # Ensure at least 1 block when in layer 2 or 3
-    if [ "$CTX_COLOR_NAME" != "$CTX_LAYER1_COLOR" ] && [ $CTX_FILLED -eq 0 ]; then
-        CTX_FILLED=1
-    fi
-
-    if [ $CTX_FILLED -gt $CTX_BAR_LENGTH ]; then
-        CTX_FILLED=$CTX_BAR_LENGTH
-    fi
 
     CTX_EMPTY=$((CTX_BAR_LENGTH - CTX_FILLED))
 
@@ -618,34 +589,22 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "${DAILY_COST:-}" ]; then
         DAILY_BASE_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT / 7.0) / $WEEKLY_LIMIT * 100}")
     fi
 
-    # Calculate layer thresholds from base and multipliers
+    # Calculate layer metrics using generic function
+    DAILY_LAYER_RESULT=$(calculate_two_layer_metrics \
+        "$DAILY_PCT" \
+        "$DAILY_BASE_THRESHOLD" \
+        "$DAILY_LAYER1_THRESHOLD_MULT" \
+        "$DAILY_LAYER2_THRESHOLD_MULT" \
+        "$DAILY_LAYER1_COLOR" \
+        "$DAILY_LAYER2_COLOR" \
+        "$BAR_LENGTH")
+    IFS='|' read -r DAILY_LAYER_NUM DAILY_VISUAL_PCT DAILY_BAR_COLOR DAILY_FILLED <<< "$DAILY_LAYER_RESULT"
+
+    # Calculate layer thresholds and multipliers (needed for projection logic below)
     DAILY_USE_LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $DAILY_BASE_THRESHOLD * $DAILY_LAYER1_THRESHOLD_MULT}")
     DAILY_USE_LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $DAILY_BASE_THRESHOLD * $DAILY_LAYER2_THRESHOLD_MULT}")
-
-    # Calculate visual scale multipliers
     DAILY_USE_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $DAILY_USE_LAYER1_THRESHOLD}")
     DAILY_USE_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_USE_LAYER2_THRESHOLD - $DAILY_USE_LAYER1_THRESHOLD)}")
-
-    # Build daily progress bar (two-layer visualization)
-    # Determine layer and calculate visual progress
-    if (( $(awk "BEGIN {print ($DAILY_PCT <= $DAILY_USE_LAYER1_THRESHOLD)}") )); then
-        # Layer 1: 0-1.0×recommend → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PCT * $DAILY_USE_LAYER1_MULTIPLIER}")
-        DAILY_BAR_COLOR="$DAILY_LAYER1_COLOR"
-    else
-        # Layer 2: 1.0×recommend-1.5×recommend → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_USE_LAYER1_THRESHOLD) * $DAILY_USE_LAYER2_MULTIPLIER}")
-        if (( $(awk "BEGIN {print ($DAILY_VISUAL_PCT > 100)}") )); then
-            DAILY_VISUAL_PCT=100
-        fi
-        DAILY_BAR_COLOR="$DAILY_LAYER2_COLOR"
-    fi
-
-    # Calculate filled blocks based on visual percentage
-    DAILY_FILLED=$(awk "BEGIN {printf \"%.0f\", ($DAILY_VISUAL_PCT / 100) * $BAR_LENGTH}")
-    if [ $DAILY_FILLED -gt $BAR_LENGTH ]; then
-        DAILY_FILLED=$BAR_LENGTH
-    fi
 
     # Calculate projected position using CURRENT layer's multiplier for consistent scale
     DAILY_PROJECTED_POS=-1
