@@ -236,6 +236,90 @@ get_official_weekly_cost() {
     echo "$weekly_cost"
 }
 
+# Calculate weekly recommended usage based on cycle start
+# Returns static value for current cycle: weekly_avail_at_cycle_start / ceil(cycles_left_from_cycle_start)
+# Usage: get_weekly_recommend <next_reset_timestamp> <weekly_limit> <weekly_baseline_pct> [cache_duration_seconds]
+# Returns: Recommended daily usage percentage
+get_weekly_recommend() {
+    local next_reset="${1:?Missing next_reset timestamp}"
+    local weekly_limit="${2:?Missing weekly_limit}"
+    local weekly_baseline_pct="${3:-0}"
+    local cache_duration="${4:-300}"
+
+    # Cache file per cycle
+    local cache_file="${CACHE_DIR:-.}/.weekly_recommend_cache"
+
+    # Get current cycle period
+    local period_data=$(get_daily_period "$next_reset")
+    local cycle_start=$(echo "$period_data" | jq -r '.start')
+
+    # Check cache validity
+    if [[ -f "$cache_file" ]]; then
+        IFS='|' read -r cached_ts cached_cycle_start cached_value < "$cache_file"
+        local current_ts=$(date +%s)
+
+        # Cache valid if: same cycle AND within cache duration
+        if [[ "$cached_cycle_start" == "$cycle_start" ]] && \
+           [[ $((current_ts - cached_ts)) -lt $cache_duration ]] && \
+           [[ "$cached_value" =~ ^[0-9]+$ ]]; then
+            echo "$cached_value"
+            return 0
+        fi
+    fi
+
+    # Get weekly cost at cycle start by filtering blocks
+    local cycle_start_iso=$(timestamp_to_iso "$cycle_start")
+    local weekly_period=$(get_anthropic_period "$next_reset")
+    local period_start=$(echo "$weekly_period" | jq -r '.start')
+    local period_start_iso=$(timestamp_to_iso "$period_start")
+
+    # Get blocks and filter up to cycle start
+    local blocks_data=$(cd ~ && npx --yes ccusage blocks --json --offline 2>/dev/null | awk '/^{/,0')
+
+    if [[ -z "$blocks_data" || "$blocks_data" == "null" ]]; then
+        echo "0"
+        return
+    fi
+
+    # Calculate weekly cost at cycle start (from blocks before cycle started)
+    local weekly_cost_at_cycle_start=$(echo "$blocks_data" | jq -r --arg start_iso "$period_start_iso" --arg end_iso "$cycle_start_iso" '
+        [.blocks[] |
+         select(
+           (.startTime >= $start_iso) and
+           (.startTime < $end_iso)
+         ) |
+         .costUSD
+        ] | add // 0
+    ')
+
+    # Apply baseline offset (same as current week calculation)
+    if [ "$(awk "BEGIN {print ($weekly_baseline_pct != 0)}")" = "1" ]; then
+        local baseline_cost=$(awk "BEGIN {printf \"%.2f\", ($weekly_limit * $weekly_baseline_pct) / 100}")
+        weekly_cost_at_cycle_start=$(awk "BEGIN {printf \"%.2f\", $weekly_cost_at_cycle_start + $baseline_cost}")
+    fi
+
+    # Calculate available budget at cycle start
+    local avail_cost_at_start=$(awk "BEGIN {printf \"%.2f\", $weekly_limit - $weekly_cost_at_cycle_start}")
+    local avail_pct_at_start=$(awk "BEGIN {printf \"%.2f\", ($avail_cost_at_start / $weekly_limit) * 100}")
+
+    # Calculate cycles left from cycle start to reset
+    local time_from_cycle_start_to_reset=$((next_reset - cycle_start))
+    local cycles_left=$(awk "BEGIN {hours = $time_from_cycle_start_to_reset / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+
+    # Calculate recommend value
+    local recommend_value=0
+    if [ "$cycles_left" -gt 0 ]; then
+        recommend_value=$(awk "BEGIN {printf \"%.0f\", $avail_pct_at_start / $cycles_left}")
+    fi
+
+    # Cache the result
+    local current_ts=$(date +%s)
+    echo "${current_ts}|${cycle_start}|${recommend_value}" > "${cache_file}.tmp"
+    mv "${cache_file}.tmp" "$cache_file"
+
+    echo "$recommend_value"
+}
+
 # Export functions for use in other scripts
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     export -f timestamp_to_iso
@@ -244,4 +328,5 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     export -f get_daily_period
     export -f get_daily_cost
     export -f get_official_weekly_cost
+    export -f get_weekly_recommend
 fi

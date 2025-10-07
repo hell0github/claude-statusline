@@ -28,44 +28,67 @@
   },
   "colors": {
     "orange": "\\033[1;93m",
+    "bright_orange": "\\033[38;5;208m",
+    "dim_orange": "\\033[2;38;5;208m",
     "red": "\\033[31m",
+    "dim_red": "\\033[2;31m",
     "pink": "\\033[38;5;225m",
+    "dim_pink": "\\033[2;38;5;225m",
+    "bright_pink": "\\033[1;38;5;225m",
     "green": "\\033[38;5;194m",
     "purple": "\\033[35m",
     "cyan": "\\033[96m",
     "reset": "\\033[0m",
-    "comment": "ANSI color codes for statusline elements. Remove '1;' prefix for normal weight, add '1;' for bold (e.g., \\033[1;31m)"
+    "comment": "ANSI color codes for statusline elements. Use '2;' prefix for dim, '1;' for bright. Available: orange, bright_orange, dim_orange, red, dim_red, pink, dim_pink, bright_pink, green, purple, cyan."
   },
   "multi_layer": {
     "layer1": {
-      "threshold_percent": 30,
+      "threshold_multiplier": 0.3,
       "color": "green",
-      "comment": "Layer 1: 0-30% usage. Color options: green, orange, red, pink, purple, cyan"
+      "comment": "Layer 1: 0-0.3x of cost_limit (base threshold). Thresholds calculated as: cost_limit × multiplier."
     },
     "layer2": {
-      "threshold_percent": 50,
+      "threshold_multiplier": 0.5,
       "color": "orange",
-      "comment": "Layer 2: 30-50% usage. Color options: green, orange, red, pink, purple, cyan"
+      "comment": "Layer 2: 0.3x-0.5x of cost_limit. Visual scale auto-calculated for each layer."
     },
     "layer3": {
-      "threshold_percent": 100,
+      "threshold_multiplier": 1.0,
       "color": "red",
-      "comment": "Layer 3: 50-100% usage. Color options: green, orange, red, pink, purple, cyan"
+      "comment": "Layer 3: 0.5x-1.0x of cost_limit. Multipliers define threshold relative to base limit."
     },
-    "comment": "Thresholds define when color changes. Colors must match keys in 'colors' section. Scale multipliers auto-calculated."
+    "comment": "5-hour window layers. Base threshold = cost_limit. Layer thresholds = base × threshold_multiplier. Visual scaling auto-calculated per layer."
   },
   "daily_layer": {
     "layer1": {
-      "threshold_percent": 14.29,
+      "threshold_multiplier": 1.0,
       "color": "green",
-      "comment": "Layer 1: 0-14.29% of weekly limit (normal daily usage, 1/7 of weekly)"
+      "comment": "Layer 1: 0-1.0x of base (weekly_limit/7 or recommend value). Base changes dynamically with mode."
     },
     "layer2": {
-      "threshold_percent": 21.44,
-      "color": "orange",
-      "comment": "Layer 2: 14.29-21.44% of weekly limit (exceeding daily usage, 1.5x expected). Shows overage status."
+      "threshold_multiplier": 1.5,
+      "color": "bright_orange",
+      "comment": "Layer 2: 1.0x-1.5x of base. Base is weekly_limit/7 (static) or recommend value (dynamic mode)."
     },
-    "comment": "Daily usage thresholds. Layer 1 = expected daily usage (1/7 weekly). Layer 2 = 1.5x daily limit for overage tracking. Multipliers auto-calculated."
+    "comment": "Daily usage layers. Base threshold = weekly_limit/7 (static mode) or recommend value (dynamic mode when weekly recommend enabled). Layer thresholds = base × threshold_multiplier. Visual scaling auto-calculated per layer."
+  },
+  "context_layer": {
+    "layer1": {
+      "threshold_multiplier": 1.0,
+      "color": "dim_pink",
+      "comment": "Layer 1: 0-1.0x of context_limit. Normal usage range with dimmed pink color."
+    },
+    "layer2": {
+      "threshold_multiplier": 2.0,
+      "color": "dim_orange",
+      "comment": "Layer 2: 1.0x-2.0x of context_limit. Elevated usage with dimmed orange color."
+    },
+    "layer3": {
+      "threshold_multiplier": 3.0,
+      "color": "dim_red",
+      "comment": "Layer 3: 2.0x-3.0x of context_limit. High usage with dimmed red color."
+    },
+    "comment": "Context window layers. Base threshold = context_limit. Layer thresholds = base × threshold_multiplier. Allows tracking beyond nominal limit. Visual scaling auto-calculated per layer."
   },
   "sections": {
     "show_directory": true,
@@ -76,7 +99,8 @@
     "show_timer": true,
     "show_token_rate": true,
     "show_sessions": true,
-    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_token_rate: current token burn rate (tokens/min). show_sessions: active session count."
+    "weekly_display_mode": "recommend",
+    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_token_rate: current token burn rate (tokens/min). show_sessions: active session count. weekly_display_mode: 'usage' (shows weekly usage %), 'avail' (shows available % left with label 'avail'), 'recommend' (shows recommended daily usage % to finish allocated budget with label 'recom')."
   },
   "tracking": {
     "weekly_scheme": "ccusage",

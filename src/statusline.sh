@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+trap 'echo "ERROR in statusline.sh" >&2; exit 1' ERR
 input=$(cat)
 
 # Configuration file path
@@ -16,51 +17,51 @@ if [ -f "$CONFIG_FILE" ]; then
     CONFIG=$(cat "$CONFIG_FILE")
 
     # User Configuration
-    USER_PLAN=$(echo "$CONFIG" | jq -r '.user.plan // "max5x"')
+    USER_PLAN=$(echo "$CONFIG" | jq -r '.user.plan')
 
     # Limits
-    WEEKLY_LIMIT_PRO=$(echo "$CONFIG" | jq -r '.limits.weekly.pro // 300')
-    WEEKLY_LIMIT_MAX5X=$(echo "$CONFIG" | jq -r '.limits.weekly.max5x // 500')
-    WEEKLY_LIMIT_MAX20X=$(echo "$CONFIG" | jq -r '.limits.weekly.max20x // 850')
-    CONTEXT_LIMIT=$(echo "$CONFIG" | jq -r '.limits.context // 168')
-    COST_LIMIT=$(echo "$CONFIG" | jq -r '.limits.cost // 140')
-    TOKEN_LIMIT=$(echo "$CONFIG" | jq -r '.limits.token // 220000')
+    WEEKLY_LIMIT_PRO=$(echo "$CONFIG" | jq -r '.limits.weekly.pro')
+    WEEKLY_LIMIT_MAX5X=$(echo "$CONFIG" | jq -r '.limits.weekly.max5x')
+    WEEKLY_LIMIT_MAX20X=$(echo "$CONFIG" | jq -r '.limits.weekly.max20x')
+    CONTEXT_LIMIT=$(echo "$CONFIG" | jq -r '.limits.context')
+    COST_LIMIT=$(echo "$CONFIG" | jq -r '.limits.cost')
+    TOKEN_LIMIT=$(echo "$CONFIG" | jq -r '.limits.token')
 
     # Paths
-    CLAUDE_PROJECTS_PATH=$(echo "$CONFIG" | jq -r '.paths.claude_projects // "~/.claude/projects/"')
+    CLAUDE_PROJECTS_PATH=$(echo "$CONFIG" | jq -r '.paths.claude_projects')
 
     # Display settings
-    BAR_LENGTH=$(echo "$CONFIG" | jq -r '.display.bar_length // 10')
-    TRANSCRIPT_TAIL_LINES=$(echo "$CONFIG" | jq -r '.display.transcript_tail_lines // 200')
-    SESSION_ACTIVITY_THRESHOLD=$(echo "$CONFIG" | jq -r '.display.session_activity_threshold_minutes // 5')
+    BAR_LENGTH=$(echo "$CONFIG" | jq -r '.display.bar_length')
+    TRANSCRIPT_TAIL_LINES=$(echo "$CONFIG" | jq -r '.display.transcript_tail_lines')
+    SESSION_ACTIVITY_THRESHOLD=$(echo "$CONFIG" | jq -r '.display.session_activity_threshold_minutes')
 
     # ccusage version
-    CCUSAGE_VERSION=$(echo "$CONFIG" | jq -r '.ccusage_version // "17.1.0"')
+    CCUSAGE_VERSION=$(echo "$CONFIG" | jq -r '.ccusage_version')
 
-    # Multi-layer settings - load thresholds and colors
-    LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.threshold_percent // 30')
-    LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.threshold_percent // 50')
-    LAYER3_THRESHOLD=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.threshold_percent // 100')
+    # Multi-layer settings (5-hour window)
+    LAYER1_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.threshold_multiplier')
+    LAYER2_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.threshold_multiplier')
+    LAYER3_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.threshold_multiplier')
 
-    LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.color // "green"')
-    LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.color // "orange"')
-    LAYER3_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.color // "red"')
+    LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer1.color')
+    LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer2.color')
+    LAYER3_COLOR=$(echo "$CONFIG" | jq -r '.multi_layer.layer3.color')
 
-    # Calculate multipliers dynamically based on thresholds
-    LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
-    LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
-    LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
+    # Daily layer settings
+    DAILY_LAYER1_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.threshold_multiplier')
+    DAILY_LAYER2_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.threshold_multiplier')
 
-    # Daily layer settings - load thresholds and colors (two-layer system)
-    DAILY_LAYER1_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.threshold_percent // 14.29')
-    DAILY_LAYER2_THRESHOLD=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.threshold_percent // 21.44')
+    DAILY_LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.color')
+    DAILY_LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.color')
 
-    DAILY_LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer1.color // "green"')
-    DAILY_LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.daily_layer.layer2.color // "orange"')
+    # Context layer settings
+    CTX_LAYER1_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.context_layer.layer1.threshold_multiplier')
+    CTX_LAYER2_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.context_layer.layer2.threshold_multiplier')
+    CTX_LAYER3_THRESHOLD_MULT=$(echo "$CONFIG" | jq -r '.context_layer.layer3.threshold_multiplier')
 
-    # Calculate daily multipliers dynamically based on thresholds
-    DAILY_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $DAILY_LAYER1_THRESHOLD}")
-    DAILY_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_LAYER2_THRESHOLD - $DAILY_LAYER1_THRESHOLD)}")
+    CTX_LAYER1_COLOR=$(echo "$CONFIG" | jq -r '.context_layer.layer1.color')
+    CTX_LAYER2_COLOR=$(echo "$CONFIG" | jq -r '.context_layer.layer2.color')
+    CTX_LAYER3_COLOR=$(echo "$CONFIG" | jq -r '.context_layer.layer3.color')
 
     # Section toggles (use 'if null' to avoid treating false as falsy)
     SHOW_DIRECTORY=$(echo "$CONFIG" | jq -r 'if .sections.show_directory == null then "true" else .sections.show_directory | tostring end')
@@ -71,21 +72,27 @@ if [ -f "$CONFIG_FILE" ]; then
     SHOW_TIMER=$(echo "$CONFIG" | jq -r 'if .sections.show_timer == null then "true" else .sections.show_timer | tostring end')
     SHOW_TOKEN_RATE=$(echo "$CONFIG" | jq -r 'if .sections.show_token_rate == null then "true" else .sections.show_token_rate | tostring end')
     SHOW_SESSIONS=$(echo "$CONFIG" | jq -r 'if .sections.show_sessions == null then "true" else .sections.show_sessions | tostring end')
+    WEEKLY_DISPLAY_MODE=$(echo "$CONFIG" | jq -r '.sections.weekly_display_mode')
 
     # Tracking settings
-    WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme // "ccusage"')
-    OFFICIAL_RESET_DATE=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date // ""')
-    WEEKLY_BASELINE_PCT=$(echo "$CONFIG" | jq -r '.tracking.weekly_baseline_percent // 0')
-    CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds // 300')
+    WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme')
+    OFFICIAL_RESET_DATE=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date')
+    WEEKLY_BASELINE_PCT=$(echo "$CONFIG" | jq -r '.tracking.weekly_baseline_percent')
+    CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds')
 
-    # Color codes
-    ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.orange // "\\033[1;38;5;208m"' | sed 's/\\\\/\\/g')
-    RED_CODE=$(echo "$CONFIG" | jq -r '.colors.red // "\\033[1;31m"' | sed 's/\\\\/\\/g')
-    PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.pink // "\\033[38;5;225m"' | sed 's/\\\\/\\/g')
-    GREEN_CODE=$(echo "$CONFIG" | jq -r '.colors.green // "\\033[38;5;194m"' | sed 's/\\\\/\\/g')
-    PURPLE_CODE=$(echo "$CONFIG" | jq -r '.colors.purple // "\\033[35m"' | sed 's/\\\\/\\/g')
-    CYAN_CODE=$(echo "$CONFIG" | jq -r '.colors.cyan // "\\033[96m"' | sed 's/\\\\/\\/g')
-    RESET_CODE=$(echo "$CONFIG" | jq -r '.colors.reset // "\\033[0m"' | sed 's/\\\\/\\/g')
+    # Color codes (trust config is complete, no fallbacks)
+    ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.orange' | sed 's/\\\\/\\/g')
+    BRIGHT_ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.bright_orange' | sed 's/\\\\/\\/g')
+    DIM_ORANGE_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_orange' | sed 's/\\\\/\\/g')
+    RED_CODE=$(echo "$CONFIG" | jq -r '.colors.red' | sed 's/\\\\/\\/g')
+    DIM_RED_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_red' | sed 's/\\\\/\\/g')
+    PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.pink' | sed 's/\\\\/\\/g')
+    DIM_PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_pink' | sed 's/\\\\/\\/g')
+    BRIGHT_PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.bright_pink' | sed 's/\\\\/\\/g')
+    GREEN_CODE=$(echo "$CONFIG" | jq -r '.colors.green' | sed 's/\\\\/\\/g')
+    PURPLE_CODE=$(echo "$CONFIG" | jq -r '.colors.purple' | sed 's/\\\\/\\/g')
+    CYAN_CODE=$(echo "$CONFIG" | jq -r '.colors.cyan' | sed 's/\\\\/\\/g')
+    RESET_CODE=$(echo "$CONFIG" | jq -r '.colors.reset' | sed 's/\\\\/\\/g')
 else
     # Default configuration (fallback if config file doesn't exist)
     USER_PLAN="max5x"
@@ -130,26 +137,61 @@ else
     # Default tracking settings
     WEEKLY_BASELINE_PCT=0
     CACHE_DURATION=300
-    # Default color codes (fallback only - customize via config.json)
-    ORANGE_CODE='\033[38;5;208m'
+
+    # Default color codes
+    ORANGE_CODE='\033[1;93m'
+    BRIGHT_ORANGE_CODE='\033[38;5;208m'
+    DIM_ORANGE_CODE='\033[2;38;5;208m'
     RED_CODE='\033[31m'
+    DIM_RED_CODE='\033[2;31m'
     PINK_CODE='\033[38;5;225m'
+    DIM_PINK_CODE='\033[2;38;5;225m'
+    BRIGHT_PINK_CODE='\033[1;38;5;225m'
     GREEN_CODE='\033[38;5;194m'
     PURPLE_CODE='\033[35m'
     CYAN_CODE='\033[96m'
     RESET_CODE='\033[0m'
+
+    # Default layer multipliers
+    LAYER1_THRESHOLD_MULT=0.3
+    LAYER2_THRESHOLD_MULT=0.5
+    LAYER3_THRESHOLD_MULT=1.0
+
+    DAILY_LAYER1_THRESHOLD_MULT=1.0
+    DAILY_LAYER2_THRESHOLD_MULT=1.5
+
+    CTX_LAYER1_THRESHOLD_MULT=1.0
+    CTX_LAYER2_THRESHOLD_MULT=2.0
+    CTX_LAYER3_THRESHOLD_MULT=3.0
+
+    # Default layer colors
+    LAYER1_COLOR="green"
+    LAYER2_COLOR="orange"
+    LAYER3_COLOR="red"
+
+    DAILY_LAYER1_COLOR="green"
+    DAILY_LAYER2_COLOR="orange"
+
+    CTX_LAYER1_COLOR="dim_pink"
+    CTX_LAYER2_COLOR="dim_orange"
+    CTX_LAYER3_COLOR="dim_red"
 fi
 
 # Helper function: map color name to ANSI code
 get_color_code() {
     case "$1" in
         "orange") echo "$ORANGE_CODE" ;;
+        "bright_orange") echo "$BRIGHT_ORANGE_CODE" ;;
+        "dim_orange") echo "$DIM_ORANGE_CODE" ;;
         "red") echo "$RED_CODE" ;;
+        "dim_red") echo "$DIM_RED_CODE" ;;
         "pink") echo "$PINK_CODE" ;;
+        "dim_pink") echo "$DIM_PINK_CODE" ;;
+        "bright_pink") echo "$BRIGHT_PINK_CODE" ;;
         "green") echo "$GREEN_CODE" ;;
         "purple") echo "$PURPLE_CODE" ;;
         "cyan") echo "$CYAN_CODE" ;;
-        *) echo "$GREEN_CODE" ;;  # Default fallback
+        *) echo "$GREEN_CODE" ;;
     esac
 }
 
@@ -214,21 +256,27 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
             # ========================================================================
             if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ]; then
 
-                # Multi-layer progress bar (using config-defined settings)
+                # Calculate layer thresholds from base (COST_LIMIT) and multipliers
+                LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER1_THRESHOLD_MULT}")
+                LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER2_THRESHOLD_MULT}")
+                LAYER3_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $COST_LIMIT * $LAYER3_THRESHOLD_MULT}")
+
+                # Calculate visual scale multipliers
+                LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $LAYER1_THRESHOLD}")
+                LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER2_THRESHOLD - $LAYER1_THRESHOLD)}")
+                LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($LAYER3_THRESHOLD - $LAYER2_THRESHOLD)}")
+
                 # Calculate actual percentage
                 ACTUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($COST / $COST_LIMIT) * 100}")
 
                 # Determine layer and calculate visual progress
                 if (( $(awk "BEGIN {print ($ACTUAL_PCT <= $LAYER1_THRESHOLD)}") )); then
-                    # Layer 1: 0-threshold% actual → 0-100% visual
                     VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $ACTUAL_PCT * $LAYER1_MULTIPLIER}")
                     BAR_COLOR="$LAYER1_COLOR"
                 elif (( $(awk "BEGIN {print ($ACTUAL_PCT <= $LAYER2_THRESHOLD)}") )); then
-                    # Layer 2: threshold1-threshold2% actual → 0-100% visual
                     VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($ACTUAL_PCT - $LAYER1_THRESHOLD) * $LAYER2_MULTIPLIER}")
                     BAR_COLOR="$LAYER2_COLOR"
                 else
-                    # Layer 3: threshold2-threshold3% actual → 0-100% visual
                     VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($ACTUAL_PCT - $LAYER2_THRESHOLD) * $LAYER3_MULTIPLIER}")
                     if (( $(awk "BEGIN {print ($VISUAL_PCT > 100)}") )); then
                         VISUAL_PCT=100
@@ -441,26 +489,58 @@ if [ "$SHOW_CONTEXT" = "true" ] && [ -f "$TRANSCRIPT_PATH" ]; then
         CONTEXT_TOKENS=0
     fi
 
+    # Calculate context layer thresholds from base (CONTEXT_LIMIT) and multipliers
+    CTX_LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER1_THRESHOLD_MULT}")
+    CTX_LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER2_THRESHOLD_MULT}")
+    CTX_LAYER3_THRESHOLD=$(awk "BEGIN {printf \"%.0f\", $CONTEXT_LIMIT * $CTX_LAYER3_THRESHOLD_MULT}")
+
+    # Calculate visual scale multipliers
+    CTX_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $CTX_LAYER1_THRESHOLD}")
+    CTX_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($CTX_LAYER2_THRESHOLD - $CTX_LAYER1_THRESHOLD)}")
+    CTX_LAYER3_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($CTX_LAYER3_THRESHOLD - $CTX_LAYER2_THRESHOLD)}")
+
+    # Determine layer and calculate visual progress
+    if (( $(awk "BEGIN {print ($CONTEXT_TOKENS <= $CTX_LAYER1_THRESHOLD)}") )); then
+        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $CONTEXT_TOKENS * $CTX_LAYER1_MULTIPLIER}")
+        CTX_COLOR_NAME="$CTX_LAYER1_COLOR"
+    elif (( $(awk "BEGIN {print ($CONTEXT_TOKENS <= $CTX_LAYER2_THRESHOLD)}") )); then
+        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($CONTEXT_TOKENS - $CTX_LAYER1_THRESHOLD) * $CTX_LAYER2_MULTIPLIER}")
+        CTX_COLOR_NAME="$CTX_LAYER2_COLOR"
+    else
+        CTX_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($CONTEXT_TOKENS - $CTX_LAYER2_THRESHOLD) * $CTX_LAYER3_MULTIPLIER}")
+        if (( $(awk "BEGIN {print ($CTX_VISUAL_PCT > 100)}") )); then
+            CTX_VISUAL_PCT=100
+        fi
+        CTX_COLOR_NAME="$CTX_LAYER3_COLOR"
+    fi
+
+    # Get color code from color name
+    CTX_COLOR=$(get_color_code "$CTX_COLOR_NAME")
+
     # Create context progress bar (same length as cost bar)
     CTX_BAR_LENGTH=$BAR_LENGTH
 
-    # Calculate total filled blocks
-    CTX_FILLED=$(awk "BEGIN {printf \"%.0f\", ($CONTEXT_TOKENS / $CONTEXT_LIMIT) * $CTX_BAR_LENGTH}")
+    # Calculate filled blocks based on visual percentage
+    CTX_FILLED=$(awk "BEGIN {printf \"%.0f\", ($CTX_VISUAL_PCT / 100) * $CTX_BAR_LENGTH}")
+
+    # Ensure at least 1 block when in layer 2 or 3
+    if [ "$CTX_COLOR_NAME" != "$CTX_LAYER1_COLOR" ] && [ $CTX_FILLED -eq 0 ]; then
+        CTX_FILLED=1
+    fi
+
     if [ $CTX_FILLED -gt $CTX_BAR_LENGTH ]; then
         CTX_FILLED=$CTX_BAR_LENGTH
     fi
 
     CTX_EMPTY=$((CTX_BAR_LENGTH - CTX_FILLED))
 
-    # Build simple progress bar
+    # Build progress bar
     CTX_PROGRESS_BAR="["
 
-    # Pink blocks for filled
     for ((i=0; i<CTX_FILLED; i++)); do
         CTX_PROGRESS_BAR="${CTX_PROGRESS_BAR}█"
     done
 
-    # Gray blocks for empty
     for ((i=0; i<CTX_EMPTY; i++)); do
         CTX_PROGRESS_BAR="${CTX_PROGRESS_BAR}░"
     done
@@ -473,10 +553,10 @@ if [ "$SHOW_CONTEXT" = "true" ] && [ -f "$TRANSCRIPT_PATH" ]; then
 fi
 
 # ====================================================================================
-# WEEKLY SECTION (independent)
+# SHARED WEEKLY/DAILY SECTION DATA (integrated weekly tracker)
 # ====================================================================================
-if [ "$SHOW_WEEKLY" = "true" ]; then
-    # Get weekly usage based on configured tracking scheme
+if [ "$SHOW_WEEKLY" = "true" ] || [ "$SHOW_DAILY" = "true" ]; then
+    # Get weekly usage based on configured tracking scheme (shared data source)
     if [ "$WEEKLY_SCHEME" = "ccusage_r" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_official_weekly_cost &>/dev/null; then
         # Use ccusage costs filtered by official Anthropic reset schedule
         # Convert ISO timestamp to Unix format
@@ -498,15 +578,25 @@ if [ "$SHOW_WEEKLY" = "true" ]; then
 fi
 
 # ====================================================================================
-# DAILY SECTION (depends on 5-hour window data for projection)
+# WEEKLY_DAILY_TRACKER (daily subsection - shows daily usage)
 # ====================================================================================
-if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily_cost &>/dev/null; then
-    # Use daily cost tracking based on official reset time
-    # Convert ISO timestamp to Unix format (reuse RESET_TIMESTAMP if already computed for weekly)
-    if [ -z "${RESET_TIMESTAMP:-}" ]; then
-        RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+# Calculate daily cost if daily is shown OR if weekly recommend mode needs it
+if [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily_cost &>/dev/null; then
+    if [ "$SHOW_DAILY" = "true" ] || ([ "$SHOW_WEEKLY" = "true" ] && [ "$WEEKLY_DISPLAY_MODE" = "recommend" ]); then
+        # Use daily cost tracking based on official reset time
+        # Convert ISO timestamp to Unix format (reuse RESET_TIMESTAMP if already computed)
+        if [ -z "${RESET_TIMESTAMP:-}" ]; then
+            RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+        fi
+        DAILY_COST=$(get_daily_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
+
+        # Calculate daily percentage (needed for display and/or recommend calculation)
+        DAILY_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_COST / $WEEKLY_LIMIT) * 100}")
     fi
-    DAILY_COST=$(get_daily_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
+fi
+
+# Build daily visualization (only if SHOW_DAILY is enabled)
+if [ "$SHOW_DAILY" = "true" ] && [ -n "${DAILY_COST:-}" ]; then
 
     # Calculate projection to end of current 5-hour window
     # Formula: daily_cost - current_window_cost + projected_window_cost
@@ -519,18 +609,32 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
         DAILY_PROJECTED_COST=$DAILY_COST
     fi
 
-    # Calculate daily percentage (against weekly limit)
-    DAILY_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_COST / $WEEKLY_LIMIT) * 100}")
+    # Calculate daily base threshold and layer thresholds
+    if [ "$SHOW_WEEKLY" = "true" ] && [ "$WEEKLY_DISPLAY_MODE" = "recommend" ] && [ -n "${WEEKLY_DISPLAY_VALUE:-}" ]; then
+        # Dynamic mode: base = recommend value
+        DAILY_BASE_THRESHOLD=$WEEKLY_DISPLAY_VALUE
+    else
+        # Static mode: base = weekly_limit / 7
+        DAILY_BASE_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT / 7.0) / $WEEKLY_LIMIT * 100}")
+    fi
+
+    # Calculate layer thresholds from base and multipliers
+    DAILY_USE_LAYER1_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $DAILY_BASE_THRESHOLD * $DAILY_LAYER1_THRESHOLD_MULT}")
+    DAILY_USE_LAYER2_THRESHOLD=$(awk "BEGIN {printf \"%.2f\", $DAILY_BASE_THRESHOLD * $DAILY_LAYER2_THRESHOLD_MULT}")
+
+    # Calculate visual scale multipliers
+    DAILY_USE_LAYER1_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / $DAILY_USE_LAYER1_THRESHOLD}")
+    DAILY_USE_LAYER2_MULTIPLIER=$(awk "BEGIN {printf \"%.2f\", 100 / ($DAILY_USE_LAYER2_THRESHOLD - $DAILY_USE_LAYER1_THRESHOLD)}")
 
     # Build daily progress bar (two-layer visualization)
     # Determine layer and calculate visual progress
-    if (( $(awk "BEGIN {print ($DAILY_PCT <= $DAILY_LAYER1_THRESHOLD)}") )); then
-        # Layer 1: 0-14.29% actual (normal usage) → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PCT * $DAILY_LAYER1_MULTIPLIER}")
+    if (( $(awk "BEGIN {print ($DAILY_PCT <= $DAILY_USE_LAYER1_THRESHOLD)}") )); then
+        # Layer 1: 0-1.0×recommend → 0-100% visual
+        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PCT * $DAILY_USE_LAYER1_MULTIPLIER}")
         DAILY_BAR_COLOR="$DAILY_LAYER1_COLOR"
     else
-        # Layer 2: 14.29-21.44% actual (exceeding) → 0-100% visual
-        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
+        # Layer 2: 1.0×recommend-1.5×recommend → 0-100% visual
+        DAILY_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PCT - $DAILY_USE_LAYER1_THRESHOLD) * $DAILY_USE_LAYER2_MULTIPLIER}")
         if (( $(awk "BEGIN {print ($DAILY_VISUAL_PCT > 100)}") )); then
             DAILY_VISUAL_PCT=100
         fi
@@ -550,7 +654,7 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
         DAILY_PROJECTED_ACTUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_COST / $WEEKLY_LIMIT) * 100}")
 
         # Determine projection color based on which layer it falls into
-        if (( $(awk "BEGIN {print ($DAILY_PROJECTED_ACTUAL_PCT <= $DAILY_LAYER1_THRESHOLD)}") )); then
+        if (( $(awk "BEGIN {print ($DAILY_PROJECTED_ACTUAL_PCT <= $DAILY_USE_LAYER1_THRESHOLD)}") )); then
             DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER1_COLOR"
         else
             DAILY_PROJECTED_BAR_COLOR="$DAILY_LAYER2_COLOR"
@@ -558,10 +662,9 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
 
         # Calculate visual position using CURRENT layer's multiplier (same scale as current bar)
         if [ "$DAILY_BAR_COLOR" = "$DAILY_LAYER1_COLOR" ]; then
-            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PROJECTED_ACTUAL_PCT * $DAILY_LAYER1_MULTIPLIER}")
+            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", $DAILY_PROJECTED_ACTUAL_PCT * $DAILY_USE_LAYER1_MULTIPLIER}")
         else
-            # Layer 2
-            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_ACTUAL_PCT - $DAILY_LAYER1_THRESHOLD) * $DAILY_LAYER2_MULTIPLIER}")
+            DAILY_PROJECTED_VISUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_PROJECTED_ACTUAL_PCT - $DAILY_USE_LAYER1_THRESHOLD) * $DAILY_USE_LAYER2_MULTIPLIER}")
         fi
 
         if (( $(awk "BEGIN {print ($DAILY_PROJECTED_VISUAL_PCT > 100)}") )); then
@@ -612,6 +715,70 @@ if [ "$SHOW_DAILY" = "true" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily
 fi
 
 # ====================================================================================
+# WEEKLY_TRACKER (weekly subsection - shows weekly usage/avail/recommend)
+# ====================================================================================
+if [ "$SHOW_WEEKLY" = "true" ] && [ -n "${WEEKLY_PCT:-}" ]; then
+    # Calculate display value and label based on mode
+    case "$WEEKLY_DISPLAY_MODE" in
+        "avail")
+            WEEKLY_DISPLAY_VALUE=$(awk "BEGIN {printf \"%.0f\", 100 - $WEEKLY_PCT}")
+            WEEKLY_LABEL="avail"
+            ;;
+        "recommend")
+            # Calculate recommended daily usage based on cycle start
+            # Formula: weekly_avail_at_cycle_start / ceil(cycles_left_from_cycle_start)
+            # Where: weekly_avail_at_cycle_start = current_weekly_avail + daily_cycle_usage
+
+            if [ -z "${RESET_TIMESTAMP:-}" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type iso_to_timestamp &>/dev/null; then
+                RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
+            fi
+
+            if [ -n "${RESET_TIMESTAMP:-}" ] && [ -n "${DAILY_PCT:-}" ]; then
+                # Calculate weekly available at cycle start
+                WEEKLY_AVAIL_PCT=$(awk "BEGIN {printf \"%.2f\", 100 - $WEEKLY_PCT}")
+                WEEKLY_AVAIL_AT_CYCLE_START=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_AVAIL_PCT + $DAILY_PCT}")
+
+                # Calculate cycles left from cycle start
+                CURRENT_TIME=$(date +%s)
+                TIME_UNTIL_RESET=$((RESET_TIMESTAMP - CURRENT_TIME))
+                CYCLES_LEFT=$(awk "BEGIN {hours = $TIME_UNTIL_RESET / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+
+                if [ "$CYCLES_LEFT" -gt 0 ]; then
+                    WEEKLY_DISPLAY_VALUE=$(awk "BEGIN {printf \"%.0f\", $WEEKLY_AVAIL_AT_CYCLE_START / $CYCLES_LEFT}")
+                else
+                    WEEKLY_DISPLAY_VALUE="0"
+                fi
+            else
+                # Fallback to usage if data unavailable
+                WEEKLY_DISPLAY_VALUE="$WEEKLY_PCT"
+            fi
+            WEEKLY_LABEL="recom"
+            ;;
+        *)
+            # Default: usage mode
+            WEEKLY_DISPLAY_VALUE="$WEEKLY_PCT"
+            WEEKLY_LABEL="weekly"
+            ;;
+    esac
+
+    # Match color with daily section if daily is enabled, otherwise use layer logic
+    if [ "$SHOW_DAILY" = "true" ] && [ -n "${DAILY_BAR_COLOR:-}" ]; then
+        # Use same color as daily section
+        WEEKLY_COLOR=$(get_color_code "$DAILY_BAR_COLOR")
+    else
+        # Apply layer logic directly to weekly percentage using static base
+        WEEKLY_STATIC_BASE=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT / 7.0) / $WEEKLY_LIMIT * 100}")
+        WEEKLY_LAYER1=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_STATIC_BASE * $DAILY_LAYER1_THRESHOLD_MULT}")
+
+        if (( $(awk "BEGIN {print ($WEEKLY_PCT <= $WEEKLY_LAYER1)}") )); then
+            WEEKLY_COLOR=$(get_color_code "$DAILY_LAYER1_COLOR")
+        else
+            WEEKLY_COLOR=$(get_color_code "$DAILY_LAYER2_COLOR")
+        fi
+    fi
+fi
+
+# ====================================================================================
 # SESSIONS SECTION (independent)
 # ====================================================================================
 if [ "$SHOW_SESSIONS" = "true" ]; then
@@ -630,15 +797,36 @@ STATUSLINE_SECTIONS=()
 # Directory section
 [[ "$SHOW_DIRECTORY" == "true" ]] && STATUSLINE_SECTIONS+=("${ORANGE_CODE}${DIR_NAME}${RESET_CODE}")
 
-[[ "$SHOW_CONTEXT" == "true" ]] && [[ -n "${CTX_TOTAL:-}" ]] && STATUSLINE_SECTIONS+=("${PINK_CODE}${CTX_TOTAL} ${CTX_PROGRESS_BAR}${RESET_CODE}")
+[[ "$SHOW_CONTEXT" == "true" ]] && [[ -n "${CTX_TOTAL:-}" ]] && STATUSLINE_SECTIONS+=("${CTX_COLOR}${CTX_TOTAL} ${CTX_PROGRESS_BAR}${RESET_CODE}")
 [[ "$SHOW_FIVE_HOUR_WINDOW" == "true" ]] && [[ -n "${COST_FMT:-}" ]] && STATUSLINE_SECTIONS+=("${PROGRESS_COLOR}${COST_FMT} ${PROGRESS_BAR} ${COST_PERCENTAGE}%${RESET_CODE}")
 
-# Add daily section if enabled and configured
-if [[ "$SHOW_DAILY" == "true" ]] && [[ -n "${DAILY_PROGRESS_BAR:-}" ]]; then
+# Add daily/weekly combined or separate sections
+if [[ "$SHOW_DAILY" == "true" ]] && [[ "$SHOW_WEEKLY" == "true" ]] && [[ "$WEEKLY_DISPLAY_MODE" == "recommend" ]] && [[ -n "${DAILY_PROGRESS_BAR:-}" ]] && [[ -n "${WEEKLY_DISPLAY_VALUE:-}" ]]; then
+    # Combined mode: daily [bar] actual/recommend% $actual/$recommend (with dimmed portions)
+    DIM_CODE="\033[2m"
+
+    # Calculate recommended daily cost from available budget at cycle start
+    WEEKLY_AVAIL_PCT=$(awk "BEGIN {printf \"%.2f\", 100 - $WEEKLY_PCT}")
+    WEEKLY_AVAIL_AT_CYCLE_START=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_AVAIL_PCT + $DAILY_PCT}")
+    CURRENT_TIME=$(date +%s)
+    TIME_UNTIL_RESET=$((RESET_TIMESTAMP - CURRENT_TIME))
+    CYCLES_LEFT=$(awk "BEGIN {hours = $TIME_UNTIL_RESET / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+
+    RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", ($WEEKLY_AVAIL_AT_CYCLE_START / 100) * $WEEKLY_LIMIT / $CYCLES_LEFT}")
+    DAILY_COST_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $DAILY_COST}")
+
+    STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}${DIM_CODE}/${WEEKLY_DISPLAY_VALUE}% \$${DAILY_COST_DISPLAY}/\$${RECOMMEND_DAILY_COST}${RESET_CODE}")
+elif [[ "$SHOW_DAILY" == "true" ]] && [[ -n "${DAILY_PROGRESS_BAR:-}" ]]; then
+    # Daily only
     STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}%${RESET_CODE}")
 fi
 
-[[ "$SHOW_WEEKLY" == "true" ]] && [[ -n "${WEEKLY_PCT:-}" ]] && STATUSLINE_SECTIONS+=("weekly ${WEEKLY_PCT}%")
+# Weekly section (only if not already combined with daily)
+if [[ "$SHOW_WEEKLY" == "true" ]] && [[ -n "${WEEKLY_DISPLAY_VALUE:-}" ]]; then
+    if [[ "$SHOW_DAILY" != "true" ]] || [[ "$WEEKLY_DISPLAY_MODE" != "recommend" ]]; then
+        STATUSLINE_SECTIONS+=("${WEEKLY_COLOR}${WEEKLY_LABEL} ${WEEKLY_DISPLAY_VALUE}%${RESET_CODE}")
+    fi
+fi
 [[ "$SHOW_TIMER" == "true" ]] && [[ -n "${RESET_INFO:-}" ]] && STATUSLINE_SECTIONS+=("${PURPLE_CODE}${RESET_INFO}${RESET_CODE}")
 [[ "$SHOW_TOKEN_RATE" == "true" ]] && [[ -n "${TOKEN_RATE:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}${TOKEN_RATE}${RESET_CODE}")
 [[ "$SHOW_SESSIONS" == "true" ]] && [[ -n "${ACTIVE_SESSIONS:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
