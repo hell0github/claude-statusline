@@ -118,8 +118,17 @@ validate_config() {
         fi
     fi
 
+    # Validate payment_cycle_start_date if show_monthly is true
+    local show_monthly=$(echo "$config_json" | jq -r '.sections.show_monthly')
+    if [[ "$show_monthly" == "true" ]]; then
+        local payment_cycle=$(echo "$config_json" | jq -r '.tracking.payment_cycle_start_date')
+        if [[ "$payment_cycle" == "null" || -z "$payment_cycle" ]]; then
+            errors+=("tracking.payment_cycle_start_date is required when sections.show_monthly is true")
+        fi
+    fi
+
     # Validate color codes (basic check for ANSI format)
-    local color_names=("orange" "bright_orange" "dim_orange" "red" "dim_red" "pink" "dim_pink" "bright_pink" "green" "purple" "cyan" "reset")
+    local color_names=("orange" "bright_orange" "dim_orange" "red" "dim_red" "pink" "dim_pink" "bright_pink" "green" "purple" "cyan" "dim_blue" "reset")
     for color in "${color_names[@]}"; do
         check_required ".colors.$color"
     done
@@ -197,6 +206,7 @@ if [ -f "$CONFIG_FILE" ]; then
     SHOW_FIVE_HOUR_WINDOW=$(echo "$CONFIG" | jq -r 'if .sections.show_five_hour_window == null then "true" else .sections.show_five_hour_window | tostring end')
     SHOW_DAILY=$(echo "$CONFIG" | jq -r 'if .sections.show_daily == null then "true" else .sections.show_daily | tostring end')
     SHOW_WEEKLY=$(echo "$CONFIG" | jq -r 'if .sections.show_weekly == null then "true" else .sections.show_weekly | tostring end')
+    SHOW_MONTHLY=$(echo "$CONFIG" | jq -r 'if .sections.show_monthly == null then "false" else .sections.show_monthly | tostring end')
     SHOW_TIMER=$(echo "$CONFIG" | jq -r 'if .sections.show_timer == null then "true" else .sections.show_timer | tostring end')
     SHOW_TOKEN_RATE=$(echo "$CONFIG" | jq -r 'if .sections.show_token_rate == null then "true" else .sections.show_token_rate | tostring end')
     SHOW_SESSIONS=$(echo "$CONFIG" | jq -r 'if .sections.show_sessions == null then "true" else .sections.show_sessions | tostring end')
@@ -205,6 +215,7 @@ if [ -f "$CONFIG_FILE" ]; then
     # Tracking settings
     WEEKLY_SCHEME=$(echo "$CONFIG" | jq -r '.tracking.weekly_scheme')
     OFFICIAL_RESET_DATE=$(echo "$CONFIG" | jq -r '.tracking.official_reset_date')
+    PAYMENT_CYCLE_START_DATE=$(echo "$CONFIG" | jq -r '.tracking.payment_cycle_start_date')
     WEEKLY_BASELINE_PCT=$(echo "$CONFIG" | jq -r '.tracking.weekly_baseline_percent')
     CACHE_DURATION=$(echo "$CONFIG" | jq -r '.tracking.cache_duration_seconds')
 
@@ -220,6 +231,7 @@ if [ -f "$CONFIG_FILE" ]; then
     GREEN_CODE=$(echo "$CONFIG" | jq -r '.colors.green' | sed 's/\\\\/\\/g')
     PURPLE_CODE=$(echo "$CONFIG" | jq -r '.colors.purple' | sed 's/\\\\/\\/g')
     CYAN_CODE=$(echo "$CONFIG" | jq -r '.colors.cyan' | sed 's/\\\\/\\/g')
+    DIM_BLUE_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_blue' | sed 's/\\\\/\\/g')
     RESET_CODE=$(echo "$CONFIG" | jq -r '.colors.reset' | sed 's/\\\\/\\/g')
 else
     # Default configuration (fallback if config file doesn't exist)
@@ -259,12 +271,14 @@ else
     SHOW_FIVE_HOUR_WINDOW="true"
     SHOW_DAILY="true"
     SHOW_WEEKLY="true"
+    SHOW_MONTHLY="false"
     SHOW_TIMER="true"
     SHOW_TOKEN_RATE="true"
     SHOW_SESSIONS="true"
     # Default tracking settings
     WEEKLY_BASELINE_PCT=0
     CACHE_DURATION=300
+    PAYMENT_CYCLE_START_DATE=""
 
     # Default color codes
     ORANGE_CODE='\033[1;93m'
@@ -278,6 +292,7 @@ else
     GREEN_CODE='\033[38;5;194m'
     PURPLE_CODE='\033[35m'
     CYAN_CODE='\033[96m'
+    DIM_BLUE_CODE='\033[94m'
     RESET_CODE='\033[0m'
 
     # Default layer multipliers
@@ -902,6 +917,22 @@ if [ "$SHOW_WEEKLY" = "true" ] && [ -n "${WEEKLY_PCT:-}" ]; then
 fi
 
 # ====================================================================================
+# MONTHLY COST SECTION (independent)
+# ====================================================================================
+if [ "$SHOW_MONTHLY" = "true" ] && [ -n "$PAYMENT_CYCLE_START_DATE" ] && type get_monthly_cost &>/dev/null; then
+    # Convert payment cycle start date to Unix timestamp
+    PAYMENT_CYCLE_TIMESTAMP=$(iso_to_timestamp "$PAYMENT_CYCLE_START_DATE")
+
+    # Get monthly cost with caching
+    MONTHLY_COST=$(get_monthly_cost "$PAYMENT_CYCLE_TIMESTAMP" "$CACHE_DURATION")
+
+    # Format monthly cost display
+    if [ -n "$MONTHLY_COST" ] && [ "$MONTHLY_COST" != "0" ]; then
+        MONTHLY_COST_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $MONTHLY_COST}")
+    fi
+fi
+
+# ====================================================================================
 # SESSIONS SECTION (independent)
 # ====================================================================================
 if [ "$SHOW_SESSIONS" = "true" ]; then
@@ -959,6 +990,10 @@ if [[ "$SHOW_WEEKLY" == "true" ]] && [[ -n "${WEEKLY_DISPLAY_VALUE:-}" ]]; then
         STATUSLINE_SECTIONS+=("${WEEKLY_COLOR}${WEEKLY_LABEL} ${WEEKLY_DISPLAY_VALUE}%${RESET_CODE}")
     fi
 fi
+
+# Monthly cost section (between weekly and timer)
+[[ "$SHOW_MONTHLY" == "true" ]] && [[ -n "${MONTHLY_COST_DISPLAY:-}" ]] && STATUSLINE_SECTIONS+=("${DIM_BLUE_CODE}total \$${MONTHLY_COST_DISPLAY}${RESET_CODE}")
+
 [[ "$SHOW_TIMER" == "true" ]] && [[ -n "${RESET_INFO:-}" ]] && STATUSLINE_SECTIONS+=("${PURPLE_CODE}${RESET_INFO}${RESET_CODE}")
 [[ "$SHOW_TOKEN_RATE" == "true" ]] && [[ -n "${TOKEN_RATE:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}${TOKEN_RATE}${RESET_CODE}")
 [[ "$SHOW_SESSIONS" == "true" ]] && [[ -n "${ACTIVE_SESSIONS:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
