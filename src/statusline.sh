@@ -711,14 +711,17 @@ if [ "$SHOW_WEEKLY" = "true" ] || [ "$SHOW_DAILY" = "true" ]; then
         # Use ccusage costs filtered by official Anthropic reset schedule
         # Convert ISO timestamp to Unix format
         RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
-        WEEK_COST=$(get_official_weekly_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
+        WEEK_COST_RAW=$(get_official_weekly_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
     else
         # Use ccusage with ISO weeks (default)
         WEEKLY_DATA=$(cd ~ && npx --yes "ccusage@${CCUSAGE_VERSION}" weekly --json --offline 2>/dev/null | awk '/^{/,0')
-        WEEK_COST=$(echo "$WEEKLY_DATA" | jq -r '.weekly[-1].totalCost // 0')
+        WEEK_COST_RAW=$(echo "$WEEKLY_DATA" | jq -r '.weekly[-1].totalCost // 0')
     fi
 
-    # Apply baseline offset to account for untracked costs (deleted transcripts)
+    # Save raw cost for recommendation calculation (without baseline)
+    WEEK_COST=$WEEK_COST_RAW
+
+    # Apply baseline offset to account for untracked costs (for display only)
     if [ "$(awk "BEGIN {print ($WEEKLY_BASELINE_PCT != 0)}")" = "1" ]; then
         BASELINE_COST=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT * $WEEKLY_BASELINE_PCT) / 100}")
         WEEK_COST=$(awk "BEGIN {printf \"%.2f\", $WEEK_COST + $BASELINE_COST}")
@@ -863,28 +866,60 @@ if [ "$SHOW_WEEKLY" = "true" ] && [ -n "${WEEKLY_PCT:-}" ]; then
             WEEKLY_LABEL="avail"
             ;;
         "recommend")
-            # Calculate recommended daily usage based on cycle start
-            # Formula: weekly_avail_at_cycle_start / ceil(cycles_left_from_cycle_start)
-            # Where: weekly_avail_at_cycle_start = current_weekly_avail + daily_cycle_usage
+            # Calculate recommended daily usage for stable budgeting
+            # Formula: (weekly_limit - usage_from_weekly_start_to_daily_cycle_start) / cycles_left
+            # This gives budget available at current daily cycle start (e.g., 3pm today)
+            # Stays stable throughout the day, updates only at daily cycle reset
 
             if [ -z "${RESET_TIMESTAMP:-}" ] && [ -n "$OFFICIAL_RESET_DATE" ] && type iso_to_timestamp &>/dev/null; then
                 RESET_TIMESTAMP=$(iso_to_timestamp "$OFFICIAL_RESET_DATE")
             fi
 
-            if [ -n "${RESET_TIMESTAMP:-}" ] && [ -n "${DAILY_PCT:-}" ]; then
-                # Calculate weekly available at cycle start
-                WEEKLY_AVAIL_PCT=$(awk "BEGIN {printf \"%.2f\", 100 - $WEEKLY_PCT}")
-                WEEKLY_AVAIL_AT_CYCLE_START=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_AVAIL_PCT + $DAILY_PCT}")
+            if [ -n "${RESET_TIMESTAMP:-}" ] && type get_anthropic_period &>/dev/null && type get_daily_period &>/dev/null; then
+                # Get weekly and daily period boundaries
+                PERIOD_DATA=$(get_anthropic_period "$RESET_TIMESTAMP")
+                WEEKLY_START=$(echo "$PERIOD_DATA" | jq -r '.start')
+                NEXT_RESET=$(echo "$PERIOD_DATA" | jq -r '.end')
 
-                # Calculate cycles left from cycle start
-                CURRENT_TIME=$(date +%s)
-                TIME_UNTIL_RESET=$((RESET_TIMESTAMP - CURRENT_TIME))
-                CYCLES_LEFT=$(awk "BEGIN {hours = $TIME_UNTIL_RESET / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+                DAILY_PERIOD=$(get_daily_period "$RESET_TIMESTAMP")
+                DAILY_CYCLE_START=$(echo "$DAILY_PERIOD" | jq -r '.start')
 
-                if [ "$CYCLES_LEFT" -gt 0 ]; then
-                    WEEKLY_DISPLAY_VALUE=$(awk "BEGIN {printf \"%.0f\", $WEEKLY_AVAIL_AT_CYCLE_START / $CYCLES_LEFT}")
+                # Calculate usage from weekly start to current daily cycle start
+                # This captures all completed daily cycles in the week
+                WEEKLY_START_ISO=$(timestamp_to_iso "$WEEKLY_START")
+                DAILY_CYCLE_START_ISO=$(timestamp_to_iso "$DAILY_CYCLE_START")
+
+                # Query ccusage blocks for costs between weekly start and daily cycle start
+                BLOCKS_DATA=$(cd ~ && npx --yes ccusage blocks --json --offline 2>/dev/null | awk '/^{/,0')
+
+                if [ -n "$BLOCKS_DATA" ] && [ "$BLOCKS_DATA" != "null" ]; then
+                    COST_BEFORE_CYCLE=$(echo "$BLOCKS_DATA" | jq -r --arg start "$WEEKLY_START_ISO" --arg end "$DAILY_CYCLE_START_ISO" '
+                        [.blocks[] |
+                         select(
+                           (.startTime >= $start) and
+                           (.startTime < $end)
+                         ) |
+                         .costUSD
+                        ] | add // 0
+                    ')
+
+                    # Weekly available at current daily cycle start
+                    WEEKLY_AVAIL_AT_CYCLE_START=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_LIMIT - $COST_BEFORE_CYCLE}")
+                    WEEKLY_AVAIL_PCT=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_AVAIL_AT_CYCLE_START / $WEEKLY_LIMIT) * 100}")
+
+                    # Calculate cycles left from now to NEXT reset
+                    CURRENT_TIME=$(date +%s)
+                    TIME_UNTIL_RESET=$((NEXT_RESET - CURRENT_TIME))
+                    CYCLES_LEFT=$(awk "BEGIN {hours = $TIME_UNTIL_RESET / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+
+                    if [ "$CYCLES_LEFT" -gt 0 ]; then
+                        WEEKLY_DISPLAY_VALUE=$(awk "BEGIN {printf \"%.0f\", $WEEKLY_AVAIL_PCT / $CYCLES_LEFT}")
+                    else
+                        WEEKLY_DISPLAY_VALUE="0"
+                    fi
                 else
-                    WEEKLY_DISPLAY_VALUE="0"
+                    # Fallback to usage if data unavailable
+                    WEEKLY_DISPLAY_VALUE="$WEEKLY_PCT"
                 fi
             else
                 # Fallback to usage if data unavailable
@@ -966,14 +1001,13 @@ if [[ "$SHOW_DAILY" == "true" ]] && [[ "$SHOW_WEEKLY" == "true" ]] && [[ "$WEEKL
     # Combined mode: daily [bar] actual/recommend% $actual/$recommend (with dimmed portions)
     DIM_CODE="\033[2m"
 
-    # Reuse values already calculated in recommend mode section
-    # WEEKLY_AVAIL_AT_CYCLE_START and CYCLES_LEFT were computed when WEEKLY_DISPLAY_VALUE was calculated
-    # Only calculate recommend daily cost (specific to combined display)
+    # Calculate recommend daily cost from precise dollar amount (not rounded percentage)
+    # This avoids rounding error: $850/7 = $121 (not 14% × $850 = $119)
     if [ -n "${WEEKLY_AVAIL_AT_CYCLE_START:-}" ] && [ -n "${CYCLES_LEFT:-}" ] && [ "$CYCLES_LEFT" -gt 0 ]; then
-        RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", ($WEEKLY_AVAIL_AT_CYCLE_START / 100) * $WEEKLY_LIMIT / $CYCLES_LEFT}")
+        RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", $WEEKLY_AVAIL_AT_CYCLE_START / $CYCLES_LEFT}")
     else
-        # Fallback if values not available
-        RECOMMEND_DAILY_COST=0
+        # Fallback to percentage-based calculation
+        RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", ($WEEKLY_DISPLAY_VALUE / 100) * $WEEKLY_LIMIT}")
     fi
 
     DAILY_COST_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $DAILY_COST}")

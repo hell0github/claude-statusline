@@ -89,8 +89,40 @@ Real-time usage tracking statusline for Claude Code using shim architecture.
 - **ccusage_r scheme** - Matches Anthropic console % (filters by official reset schedule)
 - **Daily cost tracking** - `get_daily_cost()` with caching, aligned to weekly reset time
 - **Daily projection** - Uses 5-hour window: `daily_cost - window_cost + projected_window_cost`
+- **Daily recommendation** - Stable budget recommendation, updates only at daily cycle reset
 - **Conditional rendering** - Only computes enabled sections for performance
 - **Configurable colors** - Per-layer color customization
+
+### Daily Recommendation Logic
+
+**Formula**: `(weekly_limit - usage_from_weekly_start_to_daily_cycle_start) / cycles_left`
+
+**Behavior**:
+- **Stable throughout each daily cycle** - Only updates at daily reset (e.g., 3pm)
+- **Cycle-aligned** - Uses usage up to current daily cycle start, not current time
+- **Baseline-independent** - Uses raw weekly cost (excludes baseline) for full $850 availability
+
+**Example scenarios**:
+
+**Day 1 (right after weekly reset at 3pm):**
+- Weekly start: 3pm Day 1
+- Daily cycle start: 3pm Day 1 (same!)
+- Usage from weekly→daily start: **$0**
+- Available: $850 - $0 = **$850**
+- Recommend: $850 / 7 = **$121/day**
+
+**Day 3 (at 4pm):**
+- Weekly start: 3pm Day 1
+- Daily cycle start: 3pm Day 3
+- Usage from weekly→daily start: Day 1 + Day 2 costs
+- Available: $850 - (Day 1 + Day 2)
+- Recommend: available / 5 remaining days
+- **Stays at this value from 3pm Day 3 until 3pm Day 4**
+
+**Rendering precision**:
+- Dollar amount calculated from precise division: `$850 / 7 = $121.43 → $121`
+- Percentage shown as rounded value: `14.29% → 14%`
+- Avoids rounding error: `14% × $850 = $119` ❌ vs `$850 / 7 = $121` ✓
 
 ## Configuration
 
@@ -190,6 +222,13 @@ tools/calibrate_weekly_usage.sh 15.0
 
 ### Recent Updates
 
+**v2.3** (2025-10-08) - Daily Recommendation Fix
+- Fixed recommend calculation to use correct cycle-aligned logic
+- Formula: `(weekly_limit - usage_from_weekly_start_to_daily_cycle_start) / cycles_left`
+- Stable recommendations that update only at daily reset (3pm)
+- Baseline excluded from recommendation (uses raw weekly cost)
+- Fixed rounding precision: calculate dollar amount from exact division
+
 **v2.2** (2025-10-06) - Weekly Usage Calibration Tool
 - `tools/calibrate_weekly_usage.sh` - Aligns tracking with official usage
 - Compensates for untracked costs (deleted transcripts, extended context)
@@ -211,4 +250,4 @@ tools/calibrate_weekly_usage.sh 15.0
 
 ---
 
-**Last Updated**: 2025-10-06
+**Last Updated**: 2025-10-08
