@@ -882,14 +882,16 @@ if [[ "$SHOW_DAILY" == "true" ]] && [[ "$SHOW_WEEKLY" == "true" ]] && [[ "$WEEKL
     # Combined mode: daily [bar] actual/recommend% $actual/$recommend (with dimmed portions)
     DIM_CODE="\033[2m"
 
-    # Calculate recommended daily cost from available budget at cycle start
-    WEEKLY_AVAIL_PCT=$(awk "BEGIN {printf \"%.2f\", 100 - $WEEKLY_PCT}")
-    WEEKLY_AVAIL_AT_CYCLE_START=$(awk "BEGIN {printf \"%.2f\", $WEEKLY_AVAIL_PCT + $DAILY_PCT}")
-    CURRENT_TIME=$(date +%s)
-    TIME_UNTIL_RESET=$((RESET_TIMESTAMP - CURRENT_TIME))
-    CYCLES_LEFT=$(awk "BEGIN {hours = $TIME_UNTIL_RESET / 3600; cycles = hours / 24; print (cycles == int(cycles)) ? int(cycles) : int(cycles) + 1}")
+    # Reuse values already calculated in recommend mode section
+    # WEEKLY_AVAIL_AT_CYCLE_START and CYCLES_LEFT were computed when WEEKLY_DISPLAY_VALUE was calculated
+    # Only calculate recommend daily cost (specific to combined display)
+    if [ -n "${WEEKLY_AVAIL_AT_CYCLE_START:-}" ] && [ -n "${CYCLES_LEFT:-}" ] && [ "$CYCLES_LEFT" -gt 0 ]; then
+        RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", ($WEEKLY_AVAIL_AT_CYCLE_START / 100) * $WEEKLY_LIMIT / $CYCLES_LEFT}")
+    else
+        # Fallback if values not available
+        RECOMMEND_DAILY_COST=0
+    fi
 
-    RECOMMEND_DAILY_COST=$(awk "BEGIN {printf \"%.0f\", ($WEEKLY_AVAIL_AT_CYCLE_START / 100) * $WEEKLY_LIMIT / $CYCLES_LEFT}")
     DAILY_COST_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $DAILY_COST}")
 
     STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}${DIM_CODE}/${WEEKLY_DISPLAY_VALUE}% \$${DAILY_COST_DISPLAY}/\$${RECOMMEND_DAILY_COST}${RESET_CODE}")
