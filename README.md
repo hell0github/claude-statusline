@@ -163,9 +163,11 @@ Edit `~/Projects/cc-statusline/config/config.json` to customize your statusline:
   - `"usage"` - Shows weekly usage % (default, label: "weekly")
   - `"avail"` - Shows available % remaining (label: "avail")
   - `"recommend"` - Shows recommended daily % to finish allocated budget (label: "recom")
-    - Calculates: available_at_cycle_start / cycles_left_from_cycle_start
-    - Updates daily, static throughout each 24-hour cycle
+    - Formula: `(weekly_limit - usage_from_weekly_start_to_daily_cycle_start) / cycles_left`
+    - Stable throughout each daily cycle (e.g., 3pm→3pm), updates only at daily reset
+    - Uses raw weekly cost (excludes baseline) for full limit availability
     - Combines with daily tracker to show: `daily [bar] actual/recommend% $actual/$recommend`
+    - Example: Day 1 at 3pm: $850 / 7 days = $121/day (14%)
 
 ### Tracking Configuration
 - **`tracking.weekly_scheme`** - Weekly calculation method:
