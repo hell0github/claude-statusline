@@ -320,13 +320,150 @@ get_weekly_recommend() {
     echo "$recommend_value"
 }
 
+# Calculate monthly period boundaries
+# Returns current monthly period from payment_cycle_start_date to next month
+# Usage: get_monthly_period <payment_cycle_start_timestamp>
+# Returns: JSON with {start, end} timestamps
+get_monthly_period() {
+    local cycle_start="${1:?Missing payment_cycle_start timestamp}"
+
+    # Get current time
+    local current_time=$(date +%s)
+
+    # Extract date components from cycle start
+    local cycle_start_iso=$(timestamp_to_iso "$cycle_start")
+
+    # Try GNU date first, then macOS date
+    local cycle_day=$(date -d "$cycle_start_iso" "+%d" 2>/dev/null)
+    if [ -z "$cycle_day" ]; then
+        cycle_day=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%d" 2>/dev/null)
+    fi
+
+    local cycle_time=$(date -d "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null)
+    if [ -z "$cycle_time" ]; then
+        cycle_time=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null)
+    fi
+
+    # Get current year and month
+    local current_year=$(date -d "@$current_time" "+%Y" 2>/dev/null)
+    if [ -z "$current_year" ]; then
+        current_year=$(date -j -r "$current_time" "+%Y")
+    fi
+
+    local current_month=$(date -d "@$current_time" "+%m" 2>/dev/null)
+    if [ -z "$current_month" ]; then
+        current_month=$(date -j -r "$current_time" "+%m")
+    fi
+
+    # Build current month's cycle start (same day and time, current month)
+    local this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+    if [ -z "$this_month_cycle" ]; then
+        this_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+    fi
+
+    # If current time is before this month's cycle start, use previous month
+    if [ "$current_time" -lt "$this_month_cycle" ]; then
+        # Go back one month
+        if [ "$current_month" = "01" ]; then
+            current_year=$((current_year - 1))
+            current_month="12"
+        else
+            current_month=$(printf "%02d" $((10#$current_month - 1)))
+        fi
+        this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+        if [ -z "$this_month_cycle" ]; then
+            this_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+        fi
+    fi
+
+    # Calculate next month's cycle start
+    local next_year="$current_year"
+    local next_month=$(printf "%02d" $((10#$current_month + 1)))
+    if [ "$next_month" = "13" ]; then
+        next_year=$((current_year + 1))
+        next_month="01"
+    fi
+
+    local next_month_cycle=$(date -d "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+    if [ -z "$next_month_cycle" ]; then
+        next_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
+    fi
+
+    # Return period boundaries
+    echo "{\"start\": $this_month_cycle, \"end\": $next_month_cycle}"
+}
+
+# Calculate monthly cost using ccusage blocks
+# Filters blocks from payment cycle start to current time
+# Usage: get_monthly_cost <payment_cycle_start_timestamp> [cache_duration_seconds]
+# Returns: Total cost for current monthly period
+get_monthly_cost() {
+    local cycle_start="${1:?Missing payment_cycle_start timestamp}"
+    local cache_duration="${2:-300}"  # Default 5 minutes
+
+    # Get script directory
+    local utils_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local cache_file="$utils_dir/../data/.monthly_cache"
+    local cache_duration_minutes=$((cache_duration / 60))
+
+    # Get current monthly period boundaries
+    local period_data=$(get_monthly_period "$cycle_start")
+    local period_start=$(echo "$period_data" | jq -r '.start')
+    local period_end=$(echo "$period_data" | jq -r '.end')
+
+    # Check if cache exists and is fresh
+    if [[ -f "$cache_file" ]]; then
+        local cache_age=$(find "$cache_file" -mmin -${cache_duration_minutes} 2>/dev/null | wc -l | tr -d ' ')
+        if [[ $cache_age -gt 0 ]]; then
+            # Read cache and validate format: timestamp|period_start|period_end|monthly_cost
+            local cache_content=$(cat "$cache_file")
+            local cached_period_start=$(echo "$cache_content" | cut -d'|' -f2)
+            local cached_cost=$(echo "$cache_content" | cut -d'|' -f4)
+
+            # Validate: same period AND valid number
+            if [[ "$cached_period_start" == "$period_start" ]] && [[ "$cached_cost" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+                echo "$cached_cost"
+                return 0
+            fi
+        fi
+    fi
+
+    # Cache miss - calculate from ccusage
+    # Convert timestamps to ISO format for ccusage
+    local start_iso=$(timestamp_to_iso "$period_start")
+    local end_iso=$(timestamp_to_iso "$period_end")
+
+    # Get all blocks and filter by monthly period
+    local blocks_data=$(cd ~ && npx --yes "ccusage@17.1.0" blocks --json --offline 2>/dev/null | awk '/^{/,0')
+
+    # Filter blocks within period and sum costs
+    local monthly_cost=$(echo "$blocks_data" | jq -r --arg start "$start_iso" --arg end "$end_iso" '
+        [.blocks[]? |
+         select(.startTime >= $start and .startTime < $end) |
+         .costUSD // 0
+        ] | add // 0
+    ')
+
+    # Format to 2 decimal places
+    monthly_cost=$(printf "%.2f" "$monthly_cost")
+
+    # Atomic cache write with period metadata
+    local current_ts=$(date +%s)
+    echo "${current_ts}|${period_start}|${period_end}|${monthly_cost}" > "${cache_file}.tmp"
+    mv "${cache_file}.tmp" "$cache_file"
+
+    echo "$monthly_cost"
+}
+
 # Export functions for use in other scripts
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     export -f timestamp_to_iso
     export -f iso_to_timestamp
     export -f get_anthropic_period
     export -f get_daily_period
+    export -f get_monthly_period
     export -f get_daily_cost
     export -f get_official_weekly_cost
+    export -f get_monthly_cost
     export -f get_weekly_recommend
 fi

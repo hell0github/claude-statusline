@@ -38,8 +38,9 @@
     "green": "\\033[38;5;194m",
     "purple": "\\033[35m",
     "cyan": "\\033[96m",
+    "dim_blue": "\\033[94m",
     "reset": "\\033[0m",
-    "comment": "ANSI color codes for statusline elements. Use '2;' prefix for dim, '1;' for bright. Available: orange, bright_orange, dim_orange, red, dim_red, pink, dim_pink, bright_pink, green, purple, cyan."
+    "comment": "ANSI color codes for statusline elements. Use '2;' prefix for dim, '1;' for bright. Available: orange, bright_orange, dim_orange, red, dim_red, pink, dim_pink, bright_pink, green, purple, cyan, dim_blue."
   },
   "multi_layer": {
     "layer1": {
@@ -96,17 +97,19 @@
     "show_five_hour_window": true,
     "show_daily": true,
     "show_weekly": true,
+    "show_monthly": true,
     "show_timer": true,
     "show_token_rate": true,
     "show_sessions": true,
     "weekly_display_mode": "recommend",
-    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_timer: reset countdown. show_token_rate: current token burn rate (tokens/min). show_sessions: active session count. weekly_display_mode: 'usage' (shows weekly usage %), 'avail' (shows available % left with label 'avail'), 'recommend' (shows recommended daily usage % to finish allocated budget with label 'recom')."
+    "comment": "Toggle visibility of statusline sections - set to false to hide any section. show_directory: project name (default on, bold bright orange). show_five_hour_window: 5-hour cost window ($X/$Y [bar] %). show_daily: daily cycle tracker. show_weekly: weekly percentage. show_monthly: monthly total cost. show_timer: reset countdown. show_token_rate: current token burn rate (tokens/min). show_sessions: active session count. weekly_display_mode: 'usage' (shows weekly usage %), 'avail' (shows available % left with label 'avail'), 'recommend' (shows recommended daily usage % to finish allocated budget with label 'recom')."
   },
   "tracking": {
     "weekly_scheme": "ccusage",
     "official_reset_date": "",
+    "payment_cycle_start_date": "",
     "weekly_baseline_percent": 0,
     "cache_duration_seconds": 300,
-    "comment": "Weekly tracking: 'ccusage' (default, uses ISO weeks) or 'ccusage_r' (optional, matches Anthropic console schedule). To use ccusage_r: set official_reset_date from your console's 'Resets [date/time]' (format: 2025-10-08T15:00:00-07:00 for 'Oct 8, 3pm Vancouver'). weekly_baseline_percent compensates for untracked costs from deleted transcripts (clear/compact commands) - set to the percentage gap between your Anthropic console and statusline (e.g., console 15% vs statusline 10% → set to 5). cache_duration_seconds controls how long ccusage_r results are cached (default: 300 = 5 minutes). See README for setup guide."
+    "comment": "Weekly tracking: 'ccusage' (default, uses ISO weeks) or 'ccusage_r' (optional, matches Anthropic console schedule). To use ccusage_r: set official_reset_date from your console's 'Resets [date/time]' (format: 2025-10-08T15:00:00-07:00 for 'Oct 8, 3pm Vancouver'). payment_cycle_start_date: optional, set to track monthly cost from your billing cycle start (format: 2025-10-01T15:00:00-07:00 - date is cycle start, time is copied from official_reset_date for consistency). weekly_baseline_percent compensates for untracked costs from deleted transcripts (clear/compact commands) - set to the percentage gap between your Anthropic console and statusline (e.g., console 15% vs statusline 10% → set to 5). cache_duration_seconds controls how long ccusage_r results are cached (default: 300 = 5 minutes). See README for setup guide."
   }
 }

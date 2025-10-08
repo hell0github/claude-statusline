@@ -35,7 +35,13 @@
 #    Invalidation: Cycle change OR time-based (cache_duration)
 #    Dependencies: weekly_limit, weekly_baseline_pct, daily_cost
 #
-# 4. data/.cache_deps (NEW)
+# 4. data/.monthly_cache
+#    Format: timestamp|period_start|period_end|monthly_cost
+#    Purpose: Cache monthly cost calculation (from payment_cycle_start_date)
+#    Invalidation: Period change OR time-based (cache_duration)
+#    Dependencies: payment_cycle_start_date
+#
+# 5. data/.cache_deps (NEW)
 #    Format: JSON with config dependencies
 #    Purpose: Track configuration values that affect cached data
 #    Invalidation: Manual (when config changes)
@@ -127,6 +133,7 @@ invalidate_all_caches() {
     rm -f "$data_dir/.daily_cache"
     rm -f "$data_dir/.official_weekly_cache"
     rm -f "$data_dir/.weekly_recommend_cache"
+    rm -f "$data_dir/.monthly_cache"
 }
 
 # Validate cache dependencies and invalidate if needed
