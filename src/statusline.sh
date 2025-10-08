@@ -334,16 +334,46 @@ case "$USER_PLAN" in
         ;;
 esac
 
-# Extract basic information from JSON
+# ====================================================================================
+# THREE-STAGE PIPELINE ARCHITECTURE
+# ====================================================================================
+# This statusline follows a three-stage pipeline for data flow:
+#
+# STAGE 1: DATA COLLECTION
+#   - Parse input (workspace, transcript_path)
+#   - Fetch external data (ccusage, transcript tokens, timestamps)
+#   - All external process calls happen here
+#   - Conditional: only collect data for enabled sections
+#
+# STAGE 2: COMPUTATION
+#   - Calculate derived metrics (percentages, layers, projections)
+#   - Determine visual properties (colors, filled blocks)
+#   - Apply layer calculation functions
+#   - No external calls, pure computation on collected data
+#
+# STAGE 3: RENDERING
+#   - Build progress bars and formatted strings
+#   - Assemble statusline sections
+#   - Apply colors and formatting codes
+#   - Output final statusline string
+#
+# Benefits:
+#   - Clear separation of concerns
+#   - Easier to test individual stages
+#   - Obvious data dependencies
+#   - Conditional evaluation for performance
+# ====================================================================================
+
+# ====================================================================================
+# STAGE 1: DATA COLLECTION
+# ====================================================================================
+
+# Extract basic information from JSON input
 CURRENT_DIR=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
 DIR_NAME="${CURRENT_DIR##*/}"
 # Sanitize DIR_NAME to prevent ANSI injection
 DIR_NAME=$(printf '%s' "$DIR_NAME" | tr -d '\000-\037\177')
 TRANSCRIPT_PATH=$(echo "$input" | jq -r '.transcript_path // ""')
-
-# ====================================================================================
-# SECTION CALCULATIONS (Conditional based on toggles)
-# ====================================================================================
 
 # Get 5-hour window data from ccusage (needed by 5-HOUR WINDOW, TIMER, and/or TOKEN_RATE sections)
 # Only fetch if at least one of these sections is enabled
@@ -379,6 +409,7 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
             # ========================================================================
             if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ]; then
 
+                # --- STAGE 2: COMPUTATION ---
                 # Calculate actual percentage
                 ACTUAL_PCT=$(awk "BEGIN {printf \"%.2f\", ($COST / $COST_LIMIT) * 100}")
 
@@ -442,6 +473,7 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
                     fi
                 fi
 
+                # --- STAGE 3: RENDERING ---
                 # Set projected separator color from config
                 PROJECTED_COLOR=$(get_color_code "$PROJECTED_BAR_COLOR")
 
@@ -867,8 +899,15 @@ if [ "$SHOW_SESSIONS" = "true" ]; then
 fi
 
 # ====================================================================================
-# BUILD STATUSLINE
+# STAGE 3: RENDERING - FINAL ASSEMBLY
 # ====================================================================================
+# Assemble all computed sections into the final statusline output.
+# Each section has already completed its own data→compute→render pipeline.
+# This stage conditionally includes sections based on:
+#   - Section toggle settings (show_*)
+#   - Data availability (presence of computed values)
+# ====================================================================================
+
 STATUSLINE_SECTIONS=()
 
 # Directory section
