@@ -17,6 +17,11 @@ if [ -f "$SCRIPT_DIR/statusline-layers.sh" ]; then
     source "$SCRIPT_DIR/statusline-layers.sh"
 fi
 
+# Source cache management functions
+if [ -f "$SCRIPT_DIR/statusline-cache.sh" ]; then
+    source "$SCRIPT_DIR/statusline-cache.sh"
+fi
+
 # ====================================================================================
 # CONFIG VALIDATION
 # ====================================================================================
@@ -333,6 +338,15 @@ case "$USER_PLAN" in
         WEEKLY_LIMIT=$WEEKLY_LIMIT_MAX5X  # Default fallback
         ;;
 esac
+
+# ====================================================================================
+# CACHE DEPENDENCY VALIDATION
+# ====================================================================================
+# Validate that cached data dependencies haven't changed
+# If weekly_limit or weekly_baseline_pct changed, invalidate all caches
+if type check_and_update_cache_deps &>/dev/null; then
+    check_and_update_cache_deps "$WEEKLY_LIMIT" "$WEEKLY_BASELINE_PCT"
+fi
 
 # ====================================================================================
 # THREE-STAGE PIPELINE ARCHITECTURE
