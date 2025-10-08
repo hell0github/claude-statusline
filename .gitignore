@@ -12,6 +12,7 @@ data/
 
 # Development files
 CLAUDE.md
+.serena/
 
 # Backup files
 *.backup.*
