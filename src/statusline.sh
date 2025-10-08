@@ -17,9 +17,127 @@ if [ -f "$SCRIPT_DIR/statusline-layers.sh" ]; then
     source "$SCRIPT_DIR/statusline-layers.sh"
 fi
 
+# ====================================================================================
+# CONFIG VALIDATION
+# ====================================================================================
+validate_config() {
+    local config_json=$1
+    local errors=()
+
+    # Helper function to check if a field exists and is not null
+    check_required() {
+        local field=$1
+        local value=$(echo "$config_json" | jq -r "$field")
+        if [[ "$value" == "null" || -z "$value" ]]; then
+            errors+=("Missing required field: $field")
+            return 1
+        fi
+        return 0
+    }
+
+    # Helper function to validate numeric range
+    check_numeric_range() {
+        local field=$1
+        local min=$2
+        local max=$3
+        local value=$(echo "$config_json" | jq -r "$field")
+        if [[ "$value" != "null" && -n "$value" ]]; then
+            if (( $(awk "BEGIN {print ($value < $min || $value > $max)}") )); then
+                errors+=("Field $field=$value is out of range [$min, $max]")
+            fi
+        fi
+    }
+
+    # Validate user plan
+    check_required ".user.plan"
+    local plan=$(echo "$config_json" | jq -r '.user.plan')
+    if [[ "$plan" != "pro" && "$plan" != "max5x" && "$plan" != "max20x" ]]; then
+        errors+=("Invalid user.plan: $plan (must be 'pro', 'max5x', or 'max20x')")
+    fi
+
+    # Validate limits
+    check_required ".limits.weekly.$plan"
+    check_required ".limits.cost"
+    check_required ".limits.context"
+    check_numeric_range ".limits.cost" 0 1000
+    check_numeric_range ".limits.context" 0 1000
+
+    # Validate multi-layer settings (5-hour window)
+    check_required ".multi_layer.layer1.threshold_multiplier"
+    check_required ".multi_layer.layer2.threshold_multiplier"
+    check_required ".multi_layer.layer3.threshold_multiplier"
+    check_numeric_range ".multi_layer.layer1.threshold_multiplier" 0 2
+    check_numeric_range ".multi_layer.layer2.threshold_multiplier" 0 2
+    check_numeric_range ".multi_layer.layer3.threshold_multiplier" 0 5
+
+    check_required ".multi_layer.layer1.color"
+    check_required ".multi_layer.layer2.color"
+    check_required ".multi_layer.layer3.color"
+
+    # Validate daily layer settings
+    check_required ".daily_layer.layer1.threshold_multiplier"
+    check_required ".daily_layer.layer2.threshold_multiplier"
+    check_numeric_range ".daily_layer.layer1.threshold_multiplier" 0 2
+    check_numeric_range ".daily_layer.layer2.threshold_multiplier" 0 5
+
+    check_required ".daily_layer.layer1.color"
+    check_required ".daily_layer.layer2.color"
+
+    # Validate context layer settings
+    check_required ".context_layer.layer1.threshold_multiplier"
+    check_required ".context_layer.layer2.threshold_multiplier"
+    check_required ".context_layer.layer3.threshold_multiplier"
+    check_numeric_range ".context_layer.layer1.threshold_multiplier" 0 5
+    check_numeric_range ".context_layer.layer2.threshold_multiplier" 0 5
+    check_numeric_range ".context_layer.layer3.threshold_multiplier" 0 5
+
+    check_required ".context_layer.layer1.color"
+    check_required ".context_layer.layer2.color"
+    check_required ".context_layer.layer3.color"
+
+    # Validate display settings
+    check_required ".display.bar_length"
+    check_numeric_range ".display.bar_length" 5 50
+
+    # Validate weekly scheme
+    local weekly_scheme=$(echo "$config_json" | jq -r '.tracking.weekly_scheme')
+    if [[ "$weekly_scheme" != "ccusage" && "$weekly_scheme" != "ccusage_r" && "$weekly_scheme" != "null" ]]; then
+        errors+=("Invalid tracking.weekly_scheme: $weekly_scheme (must be 'ccusage' or 'ccusage_r')")
+    fi
+
+    # Validate official_reset_date if weekly_scheme is ccusage_r
+    if [[ "$weekly_scheme" == "ccusage_r" ]]; then
+        local reset_date=$(echo "$config_json" | jq -r '.tracking.official_reset_date')
+        if [[ "$reset_date" == "null" || -z "$reset_date" ]]; then
+            errors+=("tracking.official_reset_date is required when weekly_scheme is 'ccusage_r'")
+        fi
+    fi
+
+    # Validate color codes (basic check for ANSI format)
+    local color_names=("orange" "bright_orange" "dim_orange" "red" "dim_red" "pink" "dim_pink" "bright_pink" "green" "purple" "cyan" "reset")
+    for color in "${color_names[@]}"; do
+        check_required ".colors.$color"
+    done
+
+    # Report errors
+    if [ ${#errors[@]} -gt 0 ]; then
+        echo "❌ Configuration validation failed:" >&2
+        for error in "${errors[@]}"; do
+            echo "  - $error" >&2
+        done
+        echo "" >&2
+        echo "Please check your config file: $CONFIG_FILE" >&2
+        echo "See config.example.json for reference." >&2
+        exit 1
+    fi
+}
+
 # Load configuration from JSON file if it exists
 if [ -f "$CONFIG_FILE" ]; then
     CONFIG=$(cat "$CONFIG_FILE")
+
+    # Validate configuration before using it
+    validate_config "$CONFIG"
 
     # User Configuration
     USER_PLAN=$(echo "$CONFIG" | jq -r '.user.plan')
