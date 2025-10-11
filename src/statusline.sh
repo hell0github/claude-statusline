@@ -128,7 +128,7 @@ validate_config() {
     fi
 
     # Validate color codes (basic check for ANSI format)
-    local color_names=("orange" "bright_orange" "dim_orange" "red" "dim_red" "pink" "dim_pink" "bright_pink" "green" "purple" "cyan" "dim_blue" "reset")
+    local color_names=("orange" "bright_orange" "dim_orange" "red" "dim_red" "pink" "dim_pink" "bright_pink" "green" "dim_green" "purple" "cyan" "dim_blue" "reset")
     for color in "${color_names[@]}"; do
         check_required ".colors.$color"
     done
@@ -229,6 +229,7 @@ if [ -f "$CONFIG_FILE" ]; then
     DIM_PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_pink' | sed 's/\\\\/\\/g')
     BRIGHT_PINK_CODE=$(echo "$CONFIG" | jq -r '.colors.bright_pink' | sed 's/\\\\/\\/g')
     GREEN_CODE=$(echo "$CONFIG" | jq -r '.colors.green' | sed 's/\\\\/\\/g')
+    DIM_GREEN_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_green' | sed 's/\\\\/\\/g')
     PURPLE_CODE=$(echo "$CONFIG" | jq -r '.colors.purple' | sed 's/\\\\/\\/g')
     CYAN_CODE=$(echo "$CONFIG" | jq -r '.colors.cyan' | sed 's/\\\\/\\/g')
     DIM_BLUE_CODE=$(echo "$CONFIG" | jq -r '.colors.dim_blue' | sed 's/\\\\/\\/g')
@@ -290,6 +291,7 @@ else
     DIM_PINK_CODE='\033[2;38;5;225m'
     BRIGHT_PINK_CODE='\033[1;38;5;225m'
     GREEN_CODE='\033[38;5;194m'
+    DIM_GREEN_CODE='\033[2;38;5;194m'
     PURPLE_CODE='\033[35m'
     CYAN_CODE='\033[96m'
     DIM_BLUE_CODE='\033[94m'
@@ -332,6 +334,7 @@ get_color_code() {
         "dim_pink") echo "$DIM_PINK_CODE" ;;
         "bright_pink") echo "$BRIGHT_PINK_CODE" ;;
         "green") echo "$GREEN_CODE" ;;
+        "dim_green") echo "$DIM_GREEN_CODE" ;;
         "purple") echo "$PURPLE_CODE" ;;
         "cyan") echo "$CYAN_CODE" ;;
         *) echo "$GREEN_CODE" ;;
