@@ -171,6 +171,7 @@ if [ -f "$CONFIG_FILE" ]; then
     BAR_LENGTH=$(echo "$CONFIG" | jq -r '.display.bar_length')
     TRANSCRIPT_TAIL_LINES=$(echo "$CONFIG" | jq -r '.display.transcript_tail_lines')
     SESSION_ACTIVITY_THRESHOLD=$(echo "$CONFIG" | jq -r '.display.session_activity_threshold_minutes')
+    SHOW_LABELS=$(echo "$CONFIG" | jq -r 'if .display.show_labels == null then "true" else .display.show_labels | tostring end')
 
     # ccusage version
     CCUSAGE_VERSION=$(echo "$CONFIG" | jq -r '.ccusage_version')
@@ -247,6 +248,7 @@ else
     BAR_LENGTH=10
     TRANSCRIPT_TAIL_LINES=200
     SESSION_ACTIVITY_THRESHOLD=5
+    SHOW_LABELS="true"
     CCUSAGE_VERSION="17.1.0"
     LAYER1_THRESHOLD=30
     LAYER2_THRESHOLD=50
@@ -1015,27 +1017,52 @@ if [[ "$SHOW_DAILY" == "true" ]] && [[ "$SHOW_WEEKLY" == "true" ]] && [[ "$WEEKL
 
     DAILY_COST_DISPLAY=$(awk "BEGIN {printf \"%.0f\", $DAILY_COST}")
 
-    STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}${DIM_CODE}/${WEEKLY_DISPLAY_VALUE}% \$${DAILY_COST_DISPLAY}/\$${RECOMMEND_DAILY_COST}${RESET_CODE}")
+    # Conditionally show "daily " label
+    if [[ "$SHOW_LABELS" == "true" ]]; then
+        STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}${DIM_CODE}/${WEEKLY_DISPLAY_VALUE}% \$${DAILY_COST_DISPLAY}/\$${RECOMMEND_DAILY_COST}${RESET_CODE}")
+    else
+        STATUSLINE_SECTIONS+=("${DAILY_COLOR}${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}${DIM_CODE}/${WEEKLY_DISPLAY_VALUE}% \$${DAILY_COST_DISPLAY}/\$${RECOMMEND_DAILY_COST}${RESET_CODE}")
+    fi
 elif [[ "$SHOW_DAILY" == "true" ]] && [[ -n "${DAILY_PROGRESS_BAR:-}" ]]; then
     # Daily only
-    STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}%${RESET_CODE}")
+    if [[ "$SHOW_LABELS" == "true" ]]; then
+        STATUSLINE_SECTIONS+=("${DAILY_COLOR}daily ${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}%${RESET_CODE}")
+    else
+        STATUSLINE_SECTIONS+=("${DAILY_COLOR}${DAILY_PROGRESS_BAR} ${DAILY_PCT_DISPLAY}%${RESET_CODE}")
+    fi
 fi
 
 # Weekly section (only if not already combined with daily)
 if [[ "$SHOW_WEEKLY" == "true" ]] && [[ -n "${WEEKLY_DISPLAY_VALUE:-}" ]]; then
     if [[ "$SHOW_DAILY" != "true" ]] || [[ "$WEEKLY_DISPLAY_MODE" != "recommend" ]]; then
-        STATUSLINE_SECTIONS+=("${WEEKLY_COLOR}${WEEKLY_LABEL} ${WEEKLY_DISPLAY_VALUE}%${RESET_CODE}")
+        # Conditionally show weekly label
+        if [[ "$SHOW_LABELS" == "true" ]]; then
+            STATUSLINE_SECTIONS+=("${WEEKLY_COLOR}${WEEKLY_LABEL} ${WEEKLY_DISPLAY_VALUE}%${RESET_CODE}")
+        else
+            STATUSLINE_SECTIONS+=("${WEEKLY_COLOR}${WEEKLY_DISPLAY_VALUE}%${RESET_CODE}")
+        fi
     fi
 fi
 
 # Monthly cost section (between weekly and timer)
-[[ "$SHOW_MONTHLY" == "true" ]] && [[ -n "${MONTHLY_COST_DISPLAY:-}" ]] && STATUSLINE_SECTIONS+=("${DIM_BLUE_CODE}total \$${MONTHLY_COST_DISPLAY}${RESET_CODE}")
+if [[ "$SHOW_MONTHLY" == "true" ]] && [[ -n "${MONTHLY_COST_DISPLAY:-}" ]]; then
+    # Conditionally show "total " label
+    if [[ "$SHOW_LABELS" == "true" ]]; then
+        STATUSLINE_SECTIONS+=("${DIM_BLUE_CODE}total \$${MONTHLY_COST_DISPLAY}${RESET_CODE}")
+    else
+        STATUSLINE_SECTIONS+=("${DIM_BLUE_CODE}\$${MONTHLY_COST_DISPLAY}${RESET_CODE}")
+    fi
+fi
 
 [[ "$SHOW_TIMER" == "true" ]] && [[ -n "${RESET_INFO:-}" ]] && STATUSLINE_SECTIONS+=("${PURPLE_CODE}${RESET_INFO}${RESET_CODE}")
 [[ "$SHOW_TOKEN_RATE" == "true" ]] && [[ -n "${TOKEN_RATE:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}${TOKEN_RATE}${RESET_CODE}")
 [[ "$SHOW_SESSIONS" == "true" ]] && [[ -n "${ACTIVE_SESSIONS:-}" ]] && STATUSLINE_SECTIONS+=("${CYAN_CODE}×${ACTIVE_SESSIONS}${RESET_CODE}")
 
 # Join sections with separator
+# Define dimmed separator
+DIM_CODE="\033[2m"
+SEPARATOR=" ${DIM_CODE}|${RESET_CODE} "
+
 STATUSLINE=""
 FIRST=true
 for section in "${STATUSLINE_SECTIONS[@]}"; do
@@ -1043,7 +1070,7 @@ for section in "${STATUSLINE_SECTIONS[@]}"; do
         STATUSLINE="$section"
         FIRST=false
     else
-        STATUSLINE="$STATUSLINE | $section"
+        STATUSLINE="$STATUSLINE$SEPARATOR$section"
     fi
 done
 

@@ -24,7 +24,8 @@
     "bar_length": 10,
     "transcript_tail_lines": 200,
     "session_activity_threshold_minutes": 5,
-    "comment": "Display settings: progress bar length, lines to read from transcript, minutes for active session detection"
+    "show_labels": true,
+    "comment": "Display settings: progress bar length, lines to read from transcript, minutes for active session detection, show_labels (true=show 'daily', 'total', etc.; false=hide labels for concise display)"
   },
   "colors": {
     "orange": "\\033[1;93m",
