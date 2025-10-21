@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Claude Statusline - Installation Script (v2.0)
+# Claude Statusline - Installation Script (v2.1)
 # https://github.com/hell0github/claude-statusline
 
 set -e
@@ -12,10 +12,101 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Default values
+PLAN=""
+INSTALL_PATH=""
+AUTO_UPDATE_SETTINGS="ask"  # ask, yes, no
+NON_INTERACTIVE=false
+SKIP_DEPS_CHECK=false
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --plan)
+            PLAN="$2"
+            shift 2
+            ;;
+        --install-path)
+            INSTALL_PATH="$2"
+            shift 2
+            ;;
+        --auto-update-settings)
+            AUTO_UPDATE_SETTINGS="yes"
+            shift
+            ;;
+        --no-update-settings)
+            AUTO_UPDATE_SETTINGS="no"
+            shift
+            ;;
+        --non-interactive|-y)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --skip-deps-check)
+            SKIP_DEPS_CHECK=true
+            shift
+            ;;
+        --help|-h)
+            echo "Claude Statusline Installer v2.1"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --plan PLAN              Set plan: pro, max5x, or max20x (default: max20x)"
+            echo "  --install-path PATH      Installation directory (default: ~/Projects/cc-statusline)"
+            echo "  --auto-update-settings   Automatically update settings.json"
+            echo "  --no-update-settings     Skip settings.json update"
+            echo "  --non-interactive, -y    Run without prompts (uses defaults)"
+            echo "  --skip-deps-check        Skip dependency checks"
+            echo "  --help, -h               Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  # Interactive install"
+            echo "  ./install.sh"
+            echo ""
+            echo "  # Non-interactive with defaults"
+            echo "  ./install.sh -y"
+            echo ""
+            echo "  # Non-interactive with specific plan"
+            echo "  ./install.sh --plan max20x -y"
+            echo ""
+            echo "  # Piped install (curl)"
+            echo "  curl -sSL URL | bash -s -- --plan max20x -y"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}✗ Unknown option: $1${NC}"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate plan if provided
+if [ -n "$PLAN" ] && [[ ! "$PLAN" =~ ^(pro|max5x|max20x)$ ]]; then
+    echo -e "${RED}✗ Invalid plan: $PLAN${NC}"
+    echo "  Valid options: pro, max5x, max20x"
+    exit 1
+fi
+
+# Detect if stdin is not a terminal (piped input)
+if [ "$NON_INTERACTIVE" != true ] && [ ! -t 0 ]; then
+    echo -e "${YELLOW}⚠ Warning: Detected non-interactive context (piped input)${NC}"
+    echo "  Automatically enabling non-interactive mode"
+    echo "  Use --help to see available options"
+    echo ""
+    NON_INTERACTIVE=true
+fi
+
 echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Claude Statusline Installer v2.0    ║${NC}"
+echo -e "${BLUE}║   Claude Statusline Installer v2.1    ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
 echo ""
+
+if [ "$NON_INTERACTIVE" = true ]; then
+    echo -e "${YELLOW}Running in non-interactive mode${NC}"
+    echo ""
+fi
 
 # Check if Claude Code is installed
 CLAUDE_DIR="$HOME/.claude"
@@ -27,46 +118,60 @@ fi
 echo -e "${GREEN}✓ Claude Code detected${NC}"
 
 # Check dependencies
-echo ""
-echo "Checking dependencies..."
+if [ "$SKIP_DEPS_CHECK" != true ]; then
+    echo ""
+    echo "Checking dependencies..."
 
-# Check jq
-if ! command -v jq &> /dev/null; then
-    echo -e "${YELLOW}⚠ jq not found (required for JSON processing)${NC}"
-    echo -e "  Install with: ${BLUE}brew install jq${NC} (macOS) or ${BLUE}sudo apt-get install jq${NC} (Linux)"
-    read -p "Continue anyway? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✓ jq found${NC}"
-fi
-
-# Check npm for ccusage
-if ! command -v npm &> /dev/null; then
-    echo -e "${YELLOW}⚠ npm not found (needed for ccusage)${NC}"
-    echo -e "  Install Node.js: https://nodejs.org/"
-    read -p "Continue anyway? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✓ npm found${NC}"
-
-    # Check/install ccusage
-    CCUSAGE_VERSION="17.1.0"
-    if ! npm list -g ccusage &> /dev/null; then
-        echo -e "${YELLOW}⚠ ccusage not installed${NC}"
-        read -p "Install ccusage@${CCUSAGE_VERSION} now? (y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            npm install -g "ccusage@${CCUSAGE_VERSION}"
-            echo -e "${GREEN}✓ ccusage@${CCUSAGE_VERSION} installed${NC}"
+    # Check jq
+    if ! command -v jq &> /dev/null; then
+        echo -e "${YELLOW}⚠ jq not found (required for JSON processing)${NC}"
+        echo -e "  Install with: ${BLUE}brew install jq${NC} (macOS)"
+        if [ "$NON_INTERACTIVE" = true ]; then
+            echo -e "${YELLOW}Non-interactive mode: continuing without jq (limited functionality)${NC}"
+        else
+            read -p "Continue anyway? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
         fi
     else
-        echo -e "${GREEN}✓ ccusage found${NC}"
+        echo -e "${GREEN}✓ jq found${NC}"
+    fi
+
+    # Check npm for ccusage
+    if ! command -v npm &> /dev/null; then
+        echo -e "${YELLOW}⚠ npm not found (needed for ccusage)${NC}"
+        echo -e "  Install Node.js: https://nodejs.org/"
+        if [ "$NON_INTERACTIVE" = true ]; then
+            echo -e "${YELLOW}Non-interactive mode: continuing without npm (install ccusage manually later)${NC}"
+        else
+            read -p "Continue anyway? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    else
+        echo -e "${GREEN}✓ npm found${NC}"
+
+        # Check/install ccusage
+        CCUSAGE_VERSION="17.1.0"
+        if ! npm list -g ccusage &> /dev/null; then
+            echo -e "${YELLOW}⚠ ccusage not installed${NC}"
+            if [ "$NON_INTERACTIVE" = true ]; then
+                echo -e "${YELLOW}Non-interactive mode: skipping ccusage install (install manually: npm install -g ccusage@${CCUSAGE_VERSION})${NC}"
+            else
+                read -p "Install ccusage@${CCUSAGE_VERSION} now? (y/n): " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    npm install -g "ccusage@${CCUSAGE_VERSION}"
+                    echo -e "${GREEN}✓ ccusage@${CCUSAGE_VERSION} installed${NC}"
+                fi
+            fi
+        else
+            echo -e "${GREEN}✓ ccusage found${NC}"
+        fi
     fi
 fi
 
@@ -78,27 +183,47 @@ echo -e "${BLUE}Installation Location${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -f "$SCRIPT_DIR/src/statusline.sh" ] && [ -f "$SCRIPT_DIR/config/config.example.json" ]; then
-    # Running from repo - offer to use repo location or custom
+    # Running from repo
     echo "Running from repository at: ${BLUE}$SCRIPT_DIR${NC}"
-    echo ""
-    echo "Installation options:"
-    echo "  1) Use repository location (recommended for development)"
-    echo "  2) Install to custom location"
-    read -p "Select option (1-2) [1]: " -n 1 -r install_choice
-    echo
 
-    if [ -z "$install_choice" ] || [ "$install_choice" = "1" ]; then
+    if [ -n "$INSTALL_PATH" ]; then
+        # Command-line path provided
+        INSTALL_DIR="$INSTALL_PATH"
+        echo -e "${GREEN}✓ Using specified path: $INSTALL_DIR${NC}"
+    elif [ "$NON_INTERACTIVE" = true ]; then
+        # Non-interactive: use repo location by default
         INSTALL_DIR="$SCRIPT_DIR"
-        echo -e "${GREEN}✓ Using repository as installation directory${NC}"
+        echo -e "${GREEN}✓ Using repository as installation directory (non-interactive default)${NC}"
+    else
+        # Interactive: offer choice
+        echo ""
+        echo "Installation options:"
+        echo "  1) Use repository location (recommended for development)"
+        echo "  2) Install to custom location"
+        read -p "Select option (1-2) [1]: " -n 1 -r install_choice
+        echo
+
+        if [ -z "$install_choice" ] || [ "$install_choice" = "1" ]; then
+            INSTALL_DIR="$SCRIPT_DIR"
+            echo -e "${GREEN}✓ Using repository as installation directory${NC}"
+        else
+            read -p "Enter installation path [$HOME/Projects/cc-statusline]: " custom_path
+            INSTALL_DIR="${custom_path:-$HOME/Projects/cc-statusline}"
+        fi
+    fi
+else
+    # Curl install - need to git clone
+    echo "Installing via curl/download method..."
+
+    if [ -n "$INSTALL_PATH" ]; then
+        INSTALL_DIR="$INSTALL_PATH"
+    elif [ "$NON_INTERACTIVE" = true ]; then
+        INSTALL_DIR="$HOME/Projects/cc-statusline"
+        echo -e "${GREEN}✓ Using default path: $INSTALL_DIR${NC}"
     else
         read -p "Enter installation path [$HOME/Projects/cc-statusline]: " custom_path
         INSTALL_DIR="${custom_path:-$HOME/Projects/cc-statusline}"
     fi
-else
-    # Curl install - need to git clone
-    echo "Installing via curl method..."
-    read -p "Enter installation path [$HOME/Projects/cc-statusline]: " custom_path
-    INSTALL_DIR="${custom_path:-$HOME/Projects/cc-statusline}"
 
     # Clone repository if directory doesn't exist
     if [ ! -d "$INSTALL_DIR" ]; then
@@ -183,10 +308,19 @@ echo -e "${GREEN}✓ Shim created${NC}"
 if [ "$OLD_INSTALL" = true ] && [ -f "$CLAUDE_DIR/statusline-config.json" ]; then
     echo ""
     echo -e "${YELLOW}Found old configuration at ~/.claude/statusline-config.json${NC}"
-    read -p "Migrate settings to new location? (y/n): " -n 1 -r
-    echo
 
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    MIGRATE_CONFIG=true
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo -e "${GREEN}Non-interactive mode: automatically migrating settings${NC}"
+    else
+        read -p "Migrate settings to new location? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            MIGRATE_CONFIG=false
+        fi
+    fi
+
+    if [ "$MIGRATE_CONFIG" = true ]; then
         # Merge settings (keep new format, update user preferences)
         if command -v jq &> /dev/null; then
             OLD_PLAN=$(jq -r '.user.plan // "max5x"' "$CLAUDE_DIR/statusline-config.json")
@@ -205,28 +339,45 @@ fi
 if command -v jq &> /dev/null; then
     CURRENT_PLAN=$(jq -r '.user.plan // ""' "$CONFIG_FILE")
 
-    if [ -z "$CURRENT_PLAN" ] || [ "$OLD_INSTALL" = false ]; then
-        echo ""
-        echo "Configure your Claude plan:"
-        echo "  1) pro"
-        echo "  2) max5x"
-        echo "  3) max20x"
-        read -p "Select your plan (1-3) [2]: " -n 1 -r plan_choice
-        echo
+    # Only prompt if plan not already set via CLI or config
+    if [ -z "$PLAN" ]; then
+        if [ -z "$CURRENT_PLAN" ] || [ "$OLD_INSTALL" = false ]; then
+            if [ "$NON_INTERACTIVE" = true ]; then
+                # Non-interactive: default to max20x
+                PLAN="max20x"
+                echo ""
+                echo -e "${GREEN}Non-interactive mode: defaulting to $PLAN plan${NC}"
+            else
+                # Interactive: prompt for selection
+                echo ""
+                echo "Configure your Claude plan:"
+                echo "  1) pro"
+                echo "  2) max5x"
+                echo "  3) max20x"
+                read -p "Select your plan (1-3) [3]: " -n 1 -r plan_choice
+                echo
 
-        case $plan_choice in
-            1)
-                PLAN="pro"
-                echo -e "${YELLOW}Note: pro weekly limit (300) is estimated, not verified${NC}"
-                ;;
-            3) PLAN="max20x" ;;
-            *)
-                PLAN="max5x"
-                echo -e "${YELLOW}Note: max5x weekly limit (500) is estimated, not verified${NC}"
-                ;;
-        esac
+                case $plan_choice in
+                    1)
+                        PLAN="pro"
+                        echo -e "${YELLOW}Note: pro weekly limit (300) is estimated, not verified${NC}"
+                        ;;
+                    2)
+                        PLAN="max5x"
+                        echo -e "${YELLOW}Note: max5x weekly limit (500) is estimated, not verified${NC}"
+                        ;;
+                    *)
+                        PLAN="max20x"
+                        ;;
+                esac
+            fi
+        else
+            PLAN="$CURRENT_PLAN"
+        fi
+    fi
 
-        # Update config with selected plan
+    # Update config with selected plan
+    if [ -n "$PLAN" ]; then
         jq --arg plan "$PLAN" '.user.plan = $plan' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
         mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
         echo -e "${GREEN}✓ Config set to $PLAN plan${NC}"
@@ -248,10 +399,29 @@ if [ -f "$SETTINGS_FILE" ]; then
         echo "Current settings.json exists."
         echo -e "${YELLOW}⚠ This will modify your existing settings${NC}"
         echo ""
-        read -p "Update settings.json automatically? (y/n): " -n 1 -r
-        echo
 
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Determine if we should update settings
+        UPDATE_SETTINGS=false
+        if [ "$AUTO_UPDATE_SETTINGS" = "yes" ]; then
+            UPDATE_SETTINGS=true
+            echo -e "${GREEN}Auto-update enabled: updating settings.json${NC}"
+        elif [ "$AUTO_UPDATE_SETTINGS" = "no" ]; then
+            UPDATE_SETTINGS=false
+            echo -e "${YELLOW}Skipping settings.json update (--no-update-settings)${NC}"
+            echo "  Manual step required: Add statusline to settings.json"
+        elif [ "$NON_INTERACTIVE" = true ]; then
+            # In non-interactive mode, default to updating
+            UPDATE_SETTINGS=true
+            echo -e "${GREEN}Non-interactive mode: updating settings.json${NC}"
+        else
+            read -p "Update settings.json automatically? (y/n): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                UPDATE_SETTINGS=true
+            fi
+        fi
+
+        if [ "$UPDATE_SETTINGS" = true ]; then
             # Create backup
             BACKUP_FILE="$SETTINGS_FILE.backup.$(date +%Y%m%d_%H%M%S)"
             cp "$SETTINGS_FILE" "$BACKUP_FILE"
