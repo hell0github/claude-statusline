@@ -748,6 +748,31 @@ if [ -n "$OFFICIAL_RESET_DATE" ] && type get_daily_cost &>/dev/null; then
         fi
         DAILY_COST=$(get_daily_cost "$RESET_TIMESTAMP" "$CACHE_DURATION")
 
+        # Save raw daily cost for calculations
+        DAILY_COST_RAW=$DAILY_COST
+
+        # Apply baseline offset to account for untracked costs
+        # Baseline represents historical untracked costs (deleted transcripts, extended context)
+        # Applied ONLY to first daily cycle as "starting balance" for the week
+        if [ "$(awk "BEGIN {print ($WEEKLY_BASELINE_PCT != 0)}")" = "1" ]; then
+            # Check if we're in the first daily cycle of the week
+            if type get_daily_period &>/dev/null && type get_anthropic_period &>/dev/null; then
+                DAILY_PERIOD=$(get_daily_period "$RESET_TIMESTAMP")
+                DAILY_START=$(echo "$DAILY_PERIOD" | jq -r '.start')
+
+                WEEKLY_PERIOD=$(get_anthropic_period "$RESET_TIMESTAMP")
+                WEEKLY_START=$(echo "$WEEKLY_PERIOD" | jq -r '.start')
+
+                # Apply full baseline only on day 1 (when daily period starts at weekly reset)
+                if [ "$DAILY_START" = "$WEEKLY_START" ]; then
+                    # Full weekly baseline applied as "starting balance"
+                    DAILY_BASELINE_COST=$(awk "BEGIN {printf \"%.2f\", ($WEEKLY_LIMIT * $WEEKLY_BASELINE_PCT) / 100}")
+                    DAILY_COST=$(awk "BEGIN {printf \"%.2f\", $DAILY_COST + $DAILY_BASELINE_COST}")
+                fi
+                # Days 2-7: Show only their actual usage (baseline already accounted on day 1)
+            fi
+        fi
+
         # Calculate daily percentage (needed for display and/or recommend calculation)
         DAILY_PCT=$(awk "BEGIN {printf \"%.2f\", ($DAILY_COST / $WEEKLY_LIMIT) * 100}")
     fi

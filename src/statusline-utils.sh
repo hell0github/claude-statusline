@@ -141,16 +141,15 @@ get_daily_cost() {
         return
     fi
 
-    # Filter blocks where startTime >= period_start OR blocks that overlap the period
-    # For overlapping blocks, include the full cost (conservative estimate)
+    # Filter blocks that started within the daily period [period_start, period_end]
+    # Rationale: Costs are attributed to the period when the block started, not when it ended.
+    # This prevents carryover costs from blocks that started in previous periods.
     local period_end_iso=$(timestamp_to_iso "$period_end")
     local daily_cost=$(echo "$blocks_data" | jq -r --arg start_iso "$start_iso" --arg end_iso "$period_end_iso" '
         [.blocks[] |
          select(
-           # Block starts within daily period
-           (.startTime >= $start_iso) or
-           # OR block is active and overlaps with daily period (endTime > period_start)
-           (.endTime > $start_iso and .startTime < $end_iso)
+           # Block started within the daily period
+           .startTime >= $start_iso and .startTime < $end_iso
          ) |
          .costUSD
         ] | add // 0
