@@ -567,7 +567,7 @@ if [ "$SHOW_FIVE_HOUR_WINDOW" = "true" ] || [ "$SHOW_TIMER" = "true" ] || [ "$SH
                 # Format reset time (simplified format: 10PM - no minutes)
                 if [ -n "$END_TIME" ]; then
                     # Try GNU date first (Linux), then macOS date
-                    RESET_TIME=$(date -d "$END_TIME" "+%-l%p" 2>/dev/null)
+                    RESET_TIME=$(date -d "$END_TIME" "+%-l%p" 2>/dev/null || true)
                     if [ -z "$RESET_TIME" ]; then
                         # Fallback to macOS date
                         END_TIME_CLEAN=$(echo "$END_TIME" | sed 's/\.[0-9]*Z$//')

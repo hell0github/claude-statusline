@@ -20,10 +20,16 @@ timestamp_to_iso() {
 # Returns: Unix timestamp (seconds since epoch)
 iso_to_timestamp() {
     local iso_string="${1:?Missing ISO timestamp}"
+
+    # Normalize "Z" suffix to "+0000" for BSD date compatibility
+    local normalized_iso="${iso_string/Z/+0000}"
+
     # macOS (BSD date) - using -j prevents setting system time, -f specifies input format
-    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$iso_string" "+%s" 2>/dev/null || \
-        # GNU date - simpler syntax
-        date -d "$iso_string" "+%s"
+    # Try both timezone formats: numeric offset (%z) and "Z" literal
+    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$normalized_iso" "+%s" 2>/dev/null || \
+        date -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso_string" "+%s" 2>/dev/null || \
+        # GNU date - simpler syntax (works with both Z and numeric offsets)
+        date -d "$iso_string" "+%s" 2>/dev/null
 }
 
 # Calculate current Anthropic weekly period boundaries
@@ -333,33 +339,33 @@ get_monthly_period() {
     # Extract date components from cycle start
     local cycle_start_iso=$(timestamp_to_iso "$cycle_start")
 
-    # Try GNU date first, then macOS date
+    # Try GNU date first, then macOS date (supporting both Z and numeric timezone)
     local cycle_day=$(date -d "$cycle_start_iso" "+%d" 2>/dev/null)
     if [ -z "$cycle_day" ]; then
-        cycle_day=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%d" 2>/dev/null)
+        cycle_day=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$cycle_start_iso" "+%d" 2>/dev/null || \
+                    date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%d" 2>/dev/null)
     fi
 
     local cycle_time=$(date -d "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null)
     if [ -z "$cycle_time" ]; then
-        cycle_time=$(date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null)
+        cycle_time=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null || \
+                     date -j -f "%Y-%m-%dT%H:%M:%S%z" "$cycle_start_iso" "+%H:%M:%S" 2>/dev/null)
     fi
 
     # Get current year and month
     local current_year=$(date -d "@$current_time" "+%Y" 2>/dev/null)
     if [ -z "$current_year" ]; then
-        current_year=$(date -j -r "$current_time" "+%Y")
+        current_year=$(date -j -r "$current_time" "+%Y" 2>/dev/null)
     fi
 
     local current_month=$(date -d "@$current_time" "+%m" 2>/dev/null)
     if [ -z "$current_month" ]; then
-        current_month=$(date -j -r "$current_time" "+%m")
+        current_month=$(date -j -r "$current_time" "+%m" 2>/dev/null)
     fi
 
     # Build current month's cycle start (same day and time, current month)
-    local this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-    if [ -z "$this_month_cycle" ]; then
-        this_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-    fi
+    local this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null || \
+                              date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
 
     # If current time is before this month's cycle start, use previous month
     if [ "$current_time" -lt "$this_month_cycle" ]; then
@@ -370,10 +376,8 @@ get_monthly_period() {
         else
             current_month=$(printf "%02d" $((10#$current_month - 1)))
         fi
-        this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-        if [ -z "$this_month_cycle" ]; then
-            this_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-        fi
+        this_month_cycle=$(date -d "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null || \
+                            date -j -f "%Y-%m-%d %H:%M:%S" "${current_year}-${current_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
     fi
 
     # Calculate next month's cycle start
@@ -384,10 +388,8 @@ get_monthly_period() {
         next_month="01"
     fi
 
-    local next_month_cycle=$(date -d "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-    if [ -z "$next_month_cycle" ]; then
-        next_month_cycle=$(date -j -f "%Y-%m-%d %H:%M:%S" "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
-    fi
+    local next_month_cycle=$(date -d "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null || \
+                              date -j -f "%Y-%m-%d %H:%M:%S" "${next_year}-${next_month}-${cycle_day} ${cycle_time}" "+%s" 2>/dev/null)
 
     # Return period boundaries
     echo "{\"start\": $this_month_cycle, \"end\": $next_month_cycle}"
