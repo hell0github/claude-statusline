@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --plan PLAN              Set plan: pro, max5x, or max20x (default: max20x)"
-            echo "  --install-path PATH      Installation directory (default: ~/Projects/cc-statusline)"
+            echo "  --install-path PATH      Installation directory (default: ~/cc-statusline)"
             echo "  --auto-update-settings   Automatically update settings.json"
             echo "  --no-update-settings     Skip settings.json update"
             echo "  --non-interactive, -y    Run without prompts (uses defaults)"
