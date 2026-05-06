@@ -96,7 +96,7 @@ cd ~/cc-statusline
 # 1. Create shim in ~/.claude/
 cat > ~/.claude/statusline.sh << 'EOF'
 #!/bin/bash
-exec "$HOME/Projects/cc-statusline/src/statusline.sh" "$@"
+exec "$HOME/cc-statusline/src/statusline.sh" "$@"
 EOF
 chmod +x ~/.claude/statusline.sh
 

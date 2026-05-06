@@ -207,8 +207,8 @@ if [ -f "$SCRIPT_DIR/src/statusline.sh" ] && [ -f "$SCRIPT_DIR/config/config.exa
             INSTALL_DIR="$SCRIPT_DIR"
             echo -e "${GREEN}✓ Using repository as installation directory${NC}"
         else
-            read -p "Enter installation path [$HOME/Projects/cc-statusline]: " custom_path
-            INSTALL_DIR="${custom_path:-$HOME/Projects/cc-statusline}"
+            read -p "Enter installation path [$HOME/cc-statusline]: " custom_path
+            INSTALL_DIR="${custom_path:-$HOME/cc-statusline}"
         fi
     fi
 else
@@ -218,11 +218,11 @@ else
     if [ -n "$INSTALL_PATH" ]; then
         INSTALL_DIR="$INSTALL_PATH"
     elif [ "$NON_INTERACTIVE" = true ]; then
-        INSTALL_DIR="$HOME/Projects/cc-statusline"
+        INSTALL_DIR="$HOME/cc-statusline"
         echo -e "${GREEN}✓ Using default path: $INSTALL_DIR${NC}"
     else
-        read -p "Enter installation path [$HOME/Projects/cc-statusline]: " custom_path
-        INSTALL_DIR="${custom_path:-$HOME/Projects/cc-statusline}"
+        read -p "Enter installation path [$HOME/cc-statusline]: " custom_path
+        INSTALL_DIR="${custom_path:-$HOME/cc-statusline}"
     fi
 
     # Clone repository if directory doesn't exist
