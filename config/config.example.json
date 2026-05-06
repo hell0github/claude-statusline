@@ -1,6 +1,6 @@
 {
   "user": {
-    "plan": "max20x",
+    "plan": "pro",
     "comment": "Options: pro, max5x, max20x - Set this to your Claude subscription plan"
   },
   "ccusage_version": "17.1.0",
@@ -9,7 +9,7 @@
       "pro": 300,
       "max5x": 500,
       "max20x": 850,
-      "comment": "Weekly cost limits in USD for each plan tier. NOTE: pro and max5x limits are estimated/unverified - only max20x has been tested"
+      "comment": "Adjust if Anthropic changes published limits."
     },
     "context": 168,
     "cost": 140,
